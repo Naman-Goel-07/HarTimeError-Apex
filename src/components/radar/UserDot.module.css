@@ -1,0 +1,51 @@
+.dotWrapper {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: 14px;
+  height: 14px;
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 8px rgba(255, 255, 255, 0.8),
+    0 0 20px rgba(0, 255, 136, 0.5),
+    0 0 40px rgba(0, 255, 136, 0.2);
+}
+
+/* Pulsing ring around the dot */
+.pulseRing {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 255, 136, 0.5);
+  animation: pulseExpand 2s ease-out infinite;
+}
+
+.pulseRing2 {
+  composes: pulseRing;
+  animation-delay: -1s;
+}
+
+@keyframes pulseExpand {
+  0% {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+  }
+  100% {
+    width: 50px;
+    height: 50px;
+    opacity: 0;
+  }
+}

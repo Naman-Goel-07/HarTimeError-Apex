@@ -1,0 +1,30 @@
+.arrowLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  transition: transform 0.3s ease-out;
+}
+
+.arrowSvg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
+}
+
+/* Arrow line */
+.arrowLine {
+  stroke: rgba(0, 212, 255, 0.6);
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.4));
+}
+
+/* Arrow tip */
+.arrowTip {
+  fill: rgba(0, 212, 255, 0.8);
+  filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.5));
+}

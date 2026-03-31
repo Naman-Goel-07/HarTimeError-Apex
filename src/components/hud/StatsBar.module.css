@@ -1,0 +1,130 @@
+.statsBar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  width: 100%;
+}
+
+.statsLeft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* LIVE indicator */
+.liveTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(17, 24, 32, 0.8);
+  border: 1px solid rgba(0, 255, 136, 0.15);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--neon-green);
+  letter-spacing: 1.5px;
+  font-weight: 600;
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--neon-green);
+  box-shadow: 0 0 6px var(--neon-green);
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+/* Crowd index card */
+.crowdIndex {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(17, 24, 32, 0.8);
+  border: 1px solid rgba(0, 255, 136, 0.1);
+}
+
+.crowdLabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.crowdValue {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.crowdHigh { color: var(--neon-red); text-shadow: 0 0 8px var(--neon-red-glow); }
+.crowdMedium { color: var(--neon-yellow); text-shadow: 0 0 8px var(--neon-yellow-glow); }
+.crowdLow { color: var(--neon-green); text-shadow: 0 0 8px var(--neon-green-glow); }
+
+/* Heading info chip */
+.headingChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(17, 24, 32, 0.8);
+  border: 1px solid rgba(0, 255, 136, 0.12);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.headingIcon {
+  color: var(--neon-cyan);
+  font-size: 10px;
+}
+
+/* Density badge */
+.densityBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeHigh {
+  background: rgba(255, 61, 90, 0.12);
+  border: 1px solid rgba(255, 61, 90, 0.3);
+  color: var(--neon-red);
+}
+
+.badgeMedium {
+  background: rgba(255, 184, 0, 0.12);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+  color: var(--neon-yellow);
+}
+
+.badgeLow {
+  background: rgba(0, 255, 136, 0.12);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  color: var(--neon-green);
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.badgeDotHigh { background: var(--neon-red); box-shadow: 0 0 4px var(--neon-red); }
+.badgeDotMedium { background: var(--neon-yellow); box-shadow: 0 0 4px var(--neon-yellow); }
+.badgeDotLow { background: var(--neon-green); box-shadow: 0 0 4px var(--neon-green); }

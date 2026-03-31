@@ -1,0 +1,104 @@
+.buttonsRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+/* Base button */
+.actionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: none;
+  outline: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 48px;
+}
+
+.actionBtn:active {
+  transform: scale(0.96);
+}
+
+/* Report Crowd button */
+.reportBtn {
+  background: rgba(17, 24, 32, 0.85);
+  border: 1.5px solid rgba(0, 255, 136, 0.2);
+  color: var(--neon-green);
+}
+
+.reportBtn:hover {
+  background: rgba(0, 255, 136, 0.08);
+  border-color: rgba(0, 255, 136, 0.4);
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
+}
+
+.reportIcon {
+  font-size: 16px;
+}
+
+/* SOS button */
+.sosBtn {
+  background: rgba(255, 61, 90, 0.15);
+  border: 2px solid rgba(255, 61, 90, 0.5);
+  color: var(--neon-red);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 3px;
+  padding: 12px 20px;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  position: relative;
+  overflow: visible;
+}
+
+.sosBtn:hover {
+  background: rgba(255, 61, 90, 0.25);
+  box-shadow: 0 0 30px rgba(255, 61, 90, 0.2);
+}
+
+/* SOS pulse ring */
+.sosBtn::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 61, 90, 0.3);
+  animation: sosPulse 2s ease-out infinite;
+}
+
+@keyframes sosPulse {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+/* Safe Routes button */
+.routeBtn {
+  background: rgba(17, 24, 32, 0.85);
+  border: 1.5px solid rgba(0, 212, 255, 0.2);
+  color: var(--neon-cyan);
+}
+
+.routeBtn:hover {
+  background: rgba(0, 212, 255, 0.08);
+  border-color: rgba(0, 212, 255, 0.4);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
+}
+
+.routeIcon {
+  font-size: 16px;
+}

@@ -1,0 +1,26 @@
+.radarContainer {
+  position: relative;
+  width: min(85vw, 380px);
+  height: min(85vw, 380px);
+  margin: 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle, #0d1a12 0%, #0a0e14 80%);
+  box-shadow:
+    0 0 30px rgba(0, 255, 136, 0.08),
+    0 0 60px rgba(0, 255, 136, 0.04),
+    inset 0 0 40px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Outer glowing border ring */
+.radarContainer::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 255, 136, 0.2);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.1);
+  pointer-events: none;
+  z-index: 5;
+}

@@ -1,0 +1,204 @@
+.pageWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding: var(--space-lg) var(--space-md) var(--space-xl);
+  gap: var(--space-lg);
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ambient background glow */
+.pageWrapper::before {
+  content: '';
+  position: fixed;
+  top: -30%;
+  left: -20%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(0, 255, 136, 0.025) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+  z-index: 1;
+}
+
+.logoGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.logoTitle {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  display: flex;
+  gap: 2px;
+}
+
+.logoCrowd {
+  color: var(--neon-green);
+  text-shadow: 0 0 12px var(--neon-green-glow);
+}
+
+.logoPilot {
+  color: var(--text-primary);
+}
+
+.logoSubtitle {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.headerRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+
+/* Density badge in header */
+.densityBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeHigh {
+  background: rgba(255, 61, 90, 0.12);
+  border: 1px solid rgba(255, 61, 90, 0.3);
+  color: var(--neon-red);
+}
+
+.badgeMedium {
+  background: rgba(255, 184, 0, 0.12);
+  border: 1px solid rgba(255, 184, 0, 0.3);
+  color: var(--neon-yellow);
+}
+
+.badgeLow {
+  background: rgba(0, 255, 136, 0.12);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  color: var(--neon-green);
+}
+
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.badgeDotHigh { background: var(--neon-red); box-shadow: 0 0 4px var(--neon-red); }
+.badgeDotMedium { background: var(--neon-yellow); box-shadow: 0 0 4px var(--neon-yellow); }
+.badgeDotLow { background: var(--neon-green); box-shadow: 0 0 4px var(--neon-green); }
+
+/* Radar section */
+.radarSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  z-index: 1;
+}
+
+/* Stats + compass row above the radar */
+.radarTopRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-sm);
+}
+
+/* Heading display below radar */
+.headingDisplay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  width: 100%;
+}
+
+.headingText {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--neon-green);
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px var(--neon-green-glow);
+}
+
+/* Legend */
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legendHigh { background: var(--neon-red); box-shadow: 0 0 4px var(--neon-red); }
+.legendMed { background: var(--neon-yellow); box-shadow: 0 0 4px var(--neon-yellow); }
+.legendLow { background: var(--neon-green); box-shadow: 0 0 4px var(--neon-green); }
+
+/* Bottom section */
+.bottomSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
+  width: 100%;
+  z-index: 1;
+}
+
+/* Responsive tweaks */
+@media (min-width: 400px) {
+  .pageWrapper {
+    padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+  }
+}
+
+@media (min-width: 500px) {
+  .logoTitle {
+    font-size: 26px;
+  }
+}

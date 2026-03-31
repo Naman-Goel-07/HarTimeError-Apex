@@ -1,0 +1,69 @@
+.gridLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Concentric distance rings */
+.ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 255, 136, 0.12);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.ring:nth-child(1) { width: 25%; height: 25%; }
+.ring:nth-child(2) { width: 50%; height: 50%; }
+.ring:nth-child(3) { width: 75%; height: 75%; }
+.ring:nth-child(4) { width: 100%; height: 100%; border-color: rgba(0, 255, 136, 0.18); }
+
+/* Distance labels */
+.ringLabel {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: rgba(0, 255, 136, 0.35);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.ringLabel:nth-of-type(1) { top: 37%; right: 22%; }
+.ringLabel:nth-of-type(2) { top: 37%; right: 10%; }
+.ringLabel:nth-of-type(3) { top: 37%; right: -2%; }
+
+/* Crosshair lines */
+.crosshair {
+  position: absolute;
+  background: rgba(0, 255, 136, 0.07);
+}
+
+.crosshairH {
+  width: 100%;
+  height: 1px;
+  top: 50%;
+  left: 0;
+}
+
+.crosshairV {
+  width: 1px;
+  height: 100%;
+  top: 0;
+  left: 50%;
+}
+
+/* Cardinal direction labels on the grid */
+.cardinal {
+  position: absolute;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: rgba(0, 255, 136, 0.3);
+  font-weight: 500;
+}
+
+.cardinalN { top: 4%; left: 50%; transform: translateX(-50%); }
+.cardinalS { bottom: 4%; left: 50%; transform: translateX(-50%); }
+.cardinalE { right: 4%; top: 50%; transform: translateY(-50%); }
+.cardinalW { left: 4%; top: 50%; transform: translateY(-50%); }

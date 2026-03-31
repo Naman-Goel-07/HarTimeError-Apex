@@ -1,0 +1,75 @@
+/* 1. MANDATORY: All imports must come first */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+@import "tailwindcss";
+
+/* 2. Tailwind v4 Config link */
+@config "../../tailwind.config.mjs";
+
+:root {
+  /* Carbon Core Palette */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #121212;
+  --bg-surface: #1a1a1a;
+  --bg-elevated: #222222;
+  --bg-card: rgba(22, 22, 22, 0.9);
+
+  /* Neon accents - F1 telemetry style */
+  --neon-green: #7FFF00; /* Your selected Lime Green */
+  --neon-red: #ff3333;   /* Podium Red */
+  --neon-yellow: #ffcc00;
+  --neon-cyan: #00eeff;
+
+  /* Radar & HUD Logic */
+  --radar-bg: radial-gradient(circle, #121212 0%, #0a0a0a 100%);
+  --text-primary: #e2e8f0;
+  --font-display: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+}
+
+/* 3. Global Reset */
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* 4. LEAFLET OVERRIDES (The "Pit Wall" Map Skin) */
+/* Turn the default white Leaflet popups into F1 Data Cards */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 15px rgba(0, 238, 255, 0.2);
+  font-family: var(--font-mono);
+}
+
+.leaflet-container {
+  background: var(--bg-primary) !important;
+}
+
+/* Hide the standard Leaflet attribution for a cleaner HUD look (Optional) */
+.leaflet-control-attribution {
+  background: rgba(0,0,0,0.5) !important;
+  color: #444 !important;
+  font-size: 8px !important;
+}
+
+/* 5. APEX Utility Classes */
+.font-orbitron { font-family: var(--font-display); }
+.font-technical { font-family: var(--font-mono); }
+
+.glow-text-red {
+  text-shadow: 0 0 10px rgba(255, 51, 51, 0.5);
+}
+
+.glow-text-cyan {
+  text-shadow: 0 0 10px rgba(0, 238, 255, 0.5);
+}
+
+.glow-border-cyan {
+  border: 1px solid var(--neon-cyan);
+  box-shadow: inset 0 0 10px rgba(0, 238, 255, 0.1), 0 0 10px rgba(0, 238, 255, 0.1);
+}
