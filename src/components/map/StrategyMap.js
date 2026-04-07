@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
-import { Target, Satellite, ShieldAlert, Navigation } from 'lucide-react'
+import { Target, Satellite } from 'lucide-react'
 import 'leaflet/dist/leaflet.css'
 
 function LocateControl({ userLocation }) {
