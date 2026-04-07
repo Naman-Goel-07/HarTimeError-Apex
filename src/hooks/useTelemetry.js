@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-// 🏁 Haversine Formula: Distance in meters
+// Haversine Formula: GPS Distance Math
 function getDistance(lat1, lon1, lat2, lon2) {
-	const R = 6371e3
+	const R = 6371e3 // Earth radius in meters
 	const φ1 = (lat1 * Math.PI) / 180
 	const φ2 = (lat2 * Math.PI) / 180
 	const Δφ = ((lat2 - lat1) * Math.PI) / 180
@@ -20,7 +20,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const deviceIdRef = useRef(null)
 	const THROTTLE_MS = 10000
 
-	// Generate/Retrieve Device ID (Client-side only)
+	// Client-Side ID Generation: Safe for Vercel
 	useEffect(() => {
 		if (typeof window !== 'undefined') {
 			const savedId = localStorage.getItem('apex_device_id')
@@ -30,17 +30,21 @@ export function useTelemetry(eventId, isCockpit = true) {
 		}
 	}, [])
 
-	// 1. Fetch Geofence
+	// 1. Fetch Event Perimeter
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
-			const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
-			if (data) setEventMeta(data)
+			try {
+				const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
+				if (data) setEventMeta(data)
+			} catch (e) {
+				console.error('Meta fetch error', e)
+			}
 		}
 		fetchMeta()
 	}, [eventId])
 
-	// 2. Real-time Subscription
+	// 2. Real-time Data Stream
 	useEffect(() => {
 		if (!eventId) return
 		const channel = supabase
@@ -65,16 +69,13 @@ export function useTelemetry(eventId, isCockpit = true) {
 		}
 	}, [eventId])
 
-	// 3. GPS Uploading
+	// 3. GPS Link: navigator check is critical for production
 	useEffect(() => {
 		let watchId
-		if (!eventId || !isCockpit) return
+		if (!eventId || !isCockpit || !eventMeta) return
 
 		const sendTelemetry = async (coords) => {
-			if (!eventMeta) return
 			const dist = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
-
-			// Only upload if within radius (default 1km fallback)
 			if (dist > (eventMeta.radius_meters || 1000)) return
 
 			await supabase.from('telemetry').insert([
@@ -100,11 +101,13 @@ export function useTelemetry(eventId, isCockpit = true) {
 						lastSentRef.current = now
 					}
 				},
-				(err) => console.warn('GPS Signal:', err.message),
+				(err) => console.warn('GPS Wait:', err.message),
 				{ enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
 			)
 		}
-		return () => watchId && navigator.geolocation.clearWatch(watchId)
+		return () => {
+			if (watchId) navigator.geolocation.clearWatch(watchId)
+		}
 	}, [eventId, isCockpit, eventMeta])
 
 	return { points, userLocation, eventMeta, deviceId: deviceIdRef.current }

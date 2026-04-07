@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
 import { Target, Satellite } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-// 🏁 PRODUCTION ICON FIX: Leaflet paths often break in Vercel builds
+// 🛠️ FIX: Leaflet marker icons break in production builds. This fixes them.
 if (typeof window !== 'undefined') {
 	delete L.Icon.Default.prototype._getIconUrl
 	L.Icon.Default.mergeOptions({
@@ -16,12 +16,17 @@ if (typeof window !== 'undefined') {
 	})
 }
 
-// 🏁 DRV_LOCK BUTTON
 function LocateControl({ userLocation }) {
 	const map = useMap()
 	const isLocked = !!userLocation
+
 	const handleJump = () => {
-		if (isLocked) map.flyTo([userLocation.latitude, userLocation.longitude], 18, { duration: 1.5 })
+		if (isLocked) {
+			map.flyTo([userLocation.latitude, userLocation.longitude], 18, {
+				duration: 1.5,
+				easeLinearity: 0.25,
+			})
+		}
 	}
 
 	return (
@@ -36,9 +41,9 @@ function LocateControl({ userLocation }) {
 					<Target className={`w-4 h-4 ${isLocked ? 'text-[#00eeff] animate-pulse' : 'text-red-500'}`} />
 				</div>
 				<div className="flex flex-col items-start leading-none">
-					<span className="text-[10px] font-mono text-gray-500 uppercase tracking-tighter">{isLocked ? 'Tactical' : 'Signal'}</span>
+					<span className="text-[10px] font-mono text-gray-500 uppercase tracking-tighter">{isLocked ? 'Tactical' : 'Offline'}</span>
 					<span className={`text-xs font-bold uppercase tracking-wider ${isLocked ? 'text-white' : 'text-red-500'}`}>
-						{isLocked ? 'DRV_LOCK' : 'SEARCHING...'}
+						{isLocked ? 'DRV_LOCK' : 'NO_SIGNAL'}
 					</span>
 				</div>
 			</button>
@@ -47,8 +52,15 @@ function LocateControl({ userLocation }) {
 }
 
 export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
-	// 🧠 GROUPING LOGIC: One dot per device
+	const [mounted, setMounted] = useState(false)
+
+	// 🏁 Mount Guard: Prevents SSR crashes during Vercel build
+	useEffect(() => {
+		setMounted(true)
+	}, [])
+
 	const devices = useMemo(() => {
+		if (!points || points.length === 0) return {}
 		const groups = {}
 		points.forEach((p) => {
 			const id = p.device_id || 'unknown'
@@ -61,15 +73,14 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 	const currentCenter = useMemo(() => {
 		if (geofence?.center_lat) return [geofence.center_lat, geofence.center_long]
 		if (userLocation) return [userLocation.latitude, userLocation.longitude]
-		return null
+		return [0, 0]
 	}, [geofence, userLocation])
 
-	// 🏁 SSR GUARD: Map Container must not render on server
-	if (typeof window === 'undefined' || !currentCenter) {
+	if (!mounted || typeof window === 'undefined') {
 		return (
 			<div className="w-full h-full bg-[#0b0b0b] flex flex-col items-center justify-center border border-[#222] rounded-xl">
 				<Satellite className="w-8 h-8 text-[#00eeff]/40 mb-4 animate-bounce" />
-				<span className="text-[#00eeff] text-[10px] uppercase tracking-widest animate-pulse">Establishing_Satellite_Link...</span>
+				<span className="text-[#00eeff] text-[10px] uppercase tracking-widest animate-pulse">Initializing_Tactical_Link...</span>
 			</div>
 		)
 	}
@@ -95,47 +106,33 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 
 				<LocateControl userLocation={userLocation} />
 
-				{/* 🚗 RENDER DEVICES + TRAILS */}
 				{Object.entries(devices).map(([deviceId, history]) => {
 					const latest = history[0]
-					const trail = history.slice(1, 8)
+					const trail = history.slice(1, 10)
 
 					return (
 						<div key={deviceId}>
-							{/* Primary Unit Marker */}
 							<CircleMarker
 								center={[latest.latitude, latest.longitude]}
 								radius={8}
 								pathOptions={{ fillColor: '#00eeff', color: '#fff', weight: 2, fillOpacity: 1 }}
 							/>
-							{/* Breadcrumb Trail */}
 							{trail.map((tp, i) => (
 								<CircleMarker
 									key={`${deviceId}-trail-${i}`}
 									center={[tp.latitude, tp.longitude]}
 									radius={3}
-									pathOptions={{ fillColor: '#00eeff', color: 'transparent', fillOpacity: 0.3 - i * 0.04 }}
+									pathOptions={{ fillColor: '#00eeff', color: 'transparent', fillOpacity: 0.3 - i * 0.03 }}
 								/>
 							))}
 						</div>
 					)
 				})}
-
-				{/* Grid UI Overlay */}
-				<div
-					className="absolute inset-0 pointer-events-none z-[400] opacity-10"
-					style={{
-						backgroundImage:
-							'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
-						backgroundSize: '40px 40px',
-					}}
-				/>
 			</MapContainer>
 
-			{/* HUD */}
 			<div className="absolute top-6 left-6 z-[1000] flex flex-col gap-2 pointer-events-none">
 				<div className="bg-black/80 border-l-4 border-[#00ff66] p-3 backdrop-blur-md flex flex-col">
-					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest leading-none mb-1">Active Fleet</span>
+					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest leading-none mb-1">Fleet Connectivity</span>
 					<span className="text-[#00ff66] font-bold text-xs animate-pulse tracking-tighter uppercase">
 						{Object.keys(devices).length} Units_Syncing
 					</span>
