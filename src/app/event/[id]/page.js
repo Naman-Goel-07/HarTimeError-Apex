@@ -79,44 +79,47 @@ export default function EventCockpitPage() {
 			</header>
 
 			<section className={styles.radarSection}>
-				<div className={styles.radarTopRow}>
-					{/* Passed dynamic cardinalDirection to the HUD */}
-					<StatsBar overallDensity={zone.status} heading={Math.round(safeHeading)} cardinalDirection={cardinalDirection || 'N'} />
-					<Compass heading={safeHeading} />
-				</div>
-
-				<div
-					className="relative aspect-square w-full max-w-[340px] mx-auto"
-					style={{ transform: `rotate(${-safeHeading}deg)`, transition: 'transform 0.1s ease-out' }}
-				>
-					<RadarContainer>
-						<RadarGrid />
-						<HeatBlobs blobs={blobs} />
-						<ScanLine />
-						<DirectionArrow heading={safeHeading} />
-						<UserDot />
-					</RadarContainer>
-				</div>
-
-				<div className="text-center mt-4 font-mono">
-					<span className="glow-text-cyan font-bold tracking-widest text-lg">HDG {String(Math.round(safeHeading)).padStart(3, '0')}°</span>
-					<div className="text-[10px] text-[#8892a4] uppercase tracking-wider mt-1 opacity-80">
-						Sensor:{' '}
-						<span className={permissionGranted ? 'text-[#00ff66] font-bold' : 'text-[#ffcc00] font-bold'}>
-							{permissionGranted ? 'ACTIVE' : 'STANDBY'}
-						</span>
+				{/* WRAPPER: Constrains the entire radar UI to a mobile-sized column even on desktop */}
+				<div className="w-full max-w-[340px] mx-auto flex flex-col">
+					{/* Top Row */}
+					<div className={`${styles.radarTopRow} flex justify-between items-end mb-4`}>
+						<StatsBar overallDensity={zone.status} heading={Math.round(safeHeading)} cardinalDirection={cardinalDirection || 'N'} />
+						<Compass heading={safeHeading} />
 					</div>
-				</div>
 
-				<div className="flex flex-col items-center justify-center mt-3 gap-2">
-					{!permissionGranted && isSupported && (
-						<button
-							onClick={requestPermission}
-							className="bg-[#121212] border border-[#00eeff]/50 text-[#00eeff] text-[10px] px-4 py-2 rounded-full uppercase tracking-widest hover:bg-[#00eeff]/10"
-						>
-							Sync Compass
-						</button>
-					)}
+					{/* Radar Circle */}
+					<div className="relative aspect-square w-full" style={{ transform: `rotate(${-safeHeading}deg)`, transition: 'transform 0.1s ease-out' }}>
+						<RadarContainer>
+							<RadarGrid />
+							<HeatBlobs blobs={blobs} />
+							<ScanLine />
+							<DirectionArrow heading={safeHeading} />
+							<UserDot />
+						</RadarContainer>
+					</div>
+
+					{/* Heading & Sensor Text */}
+					<div className="flex flex-col items-center mt-6 font-mono">
+						<span className="glow-text-cyan font-bold tracking-widest text-xl">HDG {String(Math.round(safeHeading)).padStart(3, '0')}°</span>
+						<div className="text-[10px] text-[#8892a4] uppercase tracking-wider mt-2 opacity-80 flex items-center gap-1">
+							Sensor:
+							<span className={permissionGranted ? 'text-[#00ff66] font-bold' : 'text-[#ffcc00] font-bold'}>
+								{permissionGranted ? 'ACTIVE' : 'STANDBY'}
+							</span>
+						</div>
+					</div>
+
+					{/* Sync Button */}
+					<div className="flex flex-col items-center justify-center mt-4 min-h-[40px]">
+						{!permissionGranted && isSupported && (
+							<button
+								onClick={requestPermission}
+								className="bg-[#121212] border border-[#00eeff]/50 text-[#00eeff] text-[10px] px-6 py-2 rounded-full uppercase tracking-widest hover:bg-[#00eeff]/10 transition-colors"
+							>
+								Sync Compass
+							</button>
+						)}
+					</div>
 				</div>
 			</section>
 
