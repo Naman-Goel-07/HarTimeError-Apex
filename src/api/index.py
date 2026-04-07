@@ -7,7 +7,7 @@ app = FastAPI()
 
 # 🛰️ DATABASE LINK
 url: str = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") 
+key: str = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
 supabase: Client = create_client(url, key)
 
 @app.post("/api/py/compute/{event_id}")
