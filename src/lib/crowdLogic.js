@@ -1,74 +1,104 @@
-/**
- * APEX - Crowd Logic Strategy Engine (V2 Optimized)
- */
+// THE MATH ENGINE: Translates real GPS coordinates into 2D Radar Blobs
 
-export function getDistanceMeters(lat1, lon1, lat2, lon2) {
-	const R = 6371e3
+// Haversine Formula: Returns distance in meters between two coordinates
+function getDistance(lat1, lon1, lat2, lon2) {
+	const R = 6371e3 // Earth radius in meters
 	const φ1 = (lat1 * Math.PI) / 180
 	const φ2 = (lat2 * Math.PI) / 180
 	const Δφ = ((lat2 - lat1) * Math.PI) / 180
 	const Δλ = ((lon2 - lon1) * Math.PI) / 180
 
 	const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
-	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 
-	return R * c
+	return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
 }
 
-export function computeHeatBlobs(centerLat, centerLon, allPoints, maxRadius = 300) {
-	const blobs = []
-	const NOW = Date.now()
-	const FIVE_MINUTES = 5 * 60 * 1000
+// Forward Azimuth: Calculates the compass bearing from Point 1 to Point 2
+function getBearing(lat1, lon1, lat2, lon2) {
+	const φ1 = (lat1 * Math.PI) / 180
+	const φ2 = (lat2 * Math.PI) / 180
+	const Δλ = ((lon2 - lon1) * Math.PI) / 180
 
-	allPoints.forEach((point) => {
-		const distance = getDistanceMeters(centerLat, centerLon, point.latitude, point.longitude)
+	const y = Math.sin(Δλ) * Math.cos(φ2)
+	const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
 
-		// 1. DISTANCE CHECK: Must be within radar range
-		// 2. SELF-FILTER: Ignore points within 2 meters (likely the user themselves)
-		// 3. STALE DATA: Ignore points older than 5 minutes
-		const pointTime = new Date(point.created_at).getTime()
+	let θ = Math.atan2(y, x)
+	let bearing = (θ * 180) / Math.PI
 
-		if (distance <= maxRadius && distance > 2 && NOW - pointTime < FIVE_MINUTES) {
-			const dy = point.latitude - centerLat
-			const dx = Math.cos((Math.PI / 180) * centerLat) * (point.longitude - centerLon)
-			const angle = Math.atan2(dy, dx)
+	return (bearing + 360) % 360 // Normalize to 0-360
+}
 
-			// IMPROVED SCALING: Use the full 0-1 range for the radar UI
-			// 0.5 is center. Max radius is a distance of 0.5 units from center.
-			const relDist = distance / maxRadius
+/**
+ * Transforms an array of Supabase GPS pings into relative X/Y coordinates for the Radar UI.
+ */
+export function computeHeatBlobs(userLat, userLon, points, maxRadiusMeters = 500) {
+	if (!userLat || !userLon || !points || points.length === 0) return []
 
-			// Calculate X and Y (0 to 1)
-			const px = 0.5 + Math.cos(angle) * (relDist * 0.45) // 0.45 keeps it slightly inside the border
-			const py = 0.5 - Math.sin(angle) * (relDist * 0.45)
-
-			blobs.push({
-				id: point.id,
-				x: px,
-				y: py,
-				intensity: Math.max(0.3, 1 - distance / maxRadius),
-				radius: 0.08,
-			})
+	// 1. Group by Device to ensure we only look at the LATEST ping per driver
+	const activeUnits = new Map()
+	points.forEach((p) => {
+		if (p.device_id && p.device_id !== 'DRV-SYNCING' && !activeUnits.has(p.device_id)) {
+			// Ignore ourselves on the radar
+			const savedId = typeof window !== 'undefined' ? localStorage.getItem('apex_device_id') : null
+			if (p.device_id !== savedId) {
+				activeUnits.set(p.device_id, p)
+			}
 		}
+	})
+
+	const blobs = []
+
+	// 2. Map GPS to Radar Grid
+	activeUnits.forEach((unit) => {
+		const dist = getDistance(userLat, userLon, unit.latitude, unit.longitude)
+
+		// If they are further away than our radar can see, ignore them
+		if (dist > maxRadiusMeters) return
+
+		const bearing = getBearing(userLat, userLon, unit.latitude, unit.longitude)
+
+		// Convert to radar scale (0 to 1).
+		// Example: If dist is 250m and max is 500m, ratio is 0.5 (halfway to edge)
+		const ratio = dist / maxRadiusMeters
+		const bearingRad = (bearing * Math.PI) / 180
+
+		// Calculate X and Y offsets.
+		// Multiply by 0.5 because the radius of the radar is half of the total width (0 to 1)
+		const dx = ratio * Math.sin(bearingRad) * 0.5
+		const dy = ratio * Math.cos(bearingRad) * 0.5
+
+		blobs.push({
+			id: unit.device_id,
+			x: 0.5 + dx, // 0.5 is the center of the radar
+			y: 0.5 - dy, // Subtract dy because Y=0 is the TOP of a computer screen (North)
+			intensity: 0.6, // Set a default intensity
+			radius: 0.08,
+			distance: dist, // Store distance for the Guidance engine
+		})
 	})
 
 	return blobs
 }
 
+/**
+ * Calculates overall sector threat level based on proximity of blobs
+ */
 export function determineStrategyZone(blobs) {
-	if (!blobs || blobs.length === 0) return { status: 'GREEN', text: 'OPTIMAL' }
+	if (!blobs || blobs.length === 0) {
+		return { status: 'GREEN', text: 'SECTOR CLEAR' }
+	}
 
-	// Calculate "Pressure" (Density in the immediate vicinity)
-	// Close blobs = within 20% of max radius
-	const closeBlobs = blobs.filter((b) => b.intensity > 0.8).length
-	const mediumBlobs = blobs.filter((b) => b.intensity > 0.5).length
-
-	if (closeBlobs >= 3 || blobs.length > 15) {
+	// Check if anyone is dangerously close (e.g., within 50 meters)
+	const criticalThreat = blobs.some((b) => b.distance < 50)
+	if (criticalThreat) {
 		return { status: 'RED', text: 'DIRTY AIR' }
 	}
 
-	if (closeBlobs >= 1 || mediumBlobs >= 5) {
-		return { status: 'YELLOW', text: 'CAUTION' }
+	// Check if there is high traffic within 200 meters
+	const moderateThreat = blobs.some((b) => b.distance < 200)
+	if (moderateThreat) {
+		return { status: 'YELLOW', text: 'TRAFFIC AHEAD' }
 	}
 
-	return { status: 'GREEN', text: 'OPTIMAL' }
+	return { status: 'GREEN', text: 'SECTOR CLEAR' }
 }
