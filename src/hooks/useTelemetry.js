@@ -16,10 +16,9 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const [userLocation, setUserLocation] = useState(null)
 	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
-	const deviceIdRef = useRef('DRV-SYNCING') // Fallback ID
+	const deviceIdRef = useRef('DRV-SYNCING')
 	const THROTTLE_MS = 10000
 
-	// Safe Device ID Generation
 	useEffect(() => {
 		if (typeof window !== 'undefined') {
 			const savedId = localStorage.getItem('apex_device_id')
@@ -29,6 +28,22 @@ export function useTelemetry(eventId, isCockpit = true) {
 		}
 	}, [])
 
+	// 1. INITIAL SYNC: Load existing telemetry from the last session
+	useEffect(() => {
+		if (!eventId) return
+
+		async function loadInitialData() {
+			const { data, error } = await supabase.from('telemetry').select('*').eq('event_id', eventId).order('created_at', { ascending: false }).limit(100) // Pull last 100 points to populate the map immediately
+
+			if (!error && data) {
+				setPoints(data)
+			}
+		}
+
+		loadInitialData()
+	}, [eventId])
+
+	// 2. Fetch Event Metadata
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
@@ -42,8 +57,9 @@ export function useTelemetry(eventId, isCockpit = true) {
 		fetchMeta()
 	}, [eventId])
 
+	// 3. Real-time Listening (Remains the same)
 	useEffect(() => {
-		if (!eventId || !process.env.NEXT_PUBLIC_SUPABASE_URL) return
+		if (!eventId) return
 		const channel = supabase
 			.channel(`live-telemetry-${eventId}`)
 			.on(
@@ -56,7 +72,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 				},
 				(payload) => {
 					if (payload?.new) {
-						setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
+						setPoints((prev) => [payload.new, ...prev.slice(0, 99)])
 					}
 				},
 			)
@@ -64,10 +80,10 @@ export function useTelemetry(eventId, isCockpit = true) {
 
 		return () => {
 			supabase.removeChannel(channel)
-			setPoints([])
 		}
 	}, [eventId])
 
+	// 4. GPS Link & Uploading
 	useEffect(() => {
 		let watchId
 		if (!eventId || !isCockpit || !eventMeta) return
@@ -76,7 +92,6 @@ export function useTelemetry(eventId, isCockpit = true) {
 			const distance = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
 			if (distance > (eventMeta.radius_meters || 1000)) return
 
-			// Include device_id in the insert
 			await supabase.from('telemetry').insert([
 				{
 					event_id: eventId,
