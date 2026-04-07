@@ -1,43 +1,50 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-const EVENT_ID = '9da4b67b-1234-5678-abcd-1234567890ab'
+// 🏁 Haversine Formula: Calculates distance in meters between two GPS points
+function getDistance(lat1, lon1, lat2, lon2) {
+	const R = 6371e3 // Earth's radius in meters
+	const φ1 = (lat1 * Math.PI) / 180
+	const φ2 = (lat2 * Math.PI) / 180
+	const Δφ = ((lat2 - lat1) * Math.PI) / 180
+	const Δλ = ((lon2 - lon1) * Math.PI) / 180
 
-export function useTelemetry(isCockpit = true) {
+	const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2)
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+
+	return R * c
+}
+
+export function useTelemetry(eventId, isCockpit = true) {
 	const [points, setPoints] = useState([])
 	const [userLocation, setUserLocation] = useState(null)
+	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
 	const THROTTLE_MS = 10000
 
-	// 1. DATA LINK: Fetch only FRESH relays and listen for new ones
+	// 1. Fetch Event Metadata (Perimeter Settings)
 	useEffect(() => {
-		if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return
-
-		async function fetchPoints() {
-			// 🏁 LOGIC UPGRADE: Only fetch data from the last 10 minutes
-			const timeThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString()
-
-			const { data, error } = await supabase
-				.from('telemetry')
-				.select('id, event_id, latitude, longitude, created_at')
-				.eq('event_id', EVENT_ID)
-				.gt('created_at', timeThreshold) // "Greater Than" our 10-minute threshold
-				.order('created_at', { ascending: false })
-				.limit(100)
-
-			if (!error && data) setPoints(data)
+		if (!eventId) return
+		async function fetchMeta() {
+			const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
+			if (data) setEventMeta(data)
 		}
-		fetchPoints()
+		fetchMeta()
+	}, [eventId])
+
+	// 2. Data Link: Real-time Listening
+	useEffect(() => {
+		if (!eventId || !process.env.NEXT_PUBLIC_SUPABASE_URL) return
 
 		const channel = supabase
-			.channel('live-telemetry')
+			.channel(`live-telemetry-${eventId}`)
 			.on(
 				'postgres_changes',
 				{
 					event: 'INSERT',
 					schema: 'public',
 					table: 'telemetry',
-					filter: `event_id=eq.${EVENT_ID}`,
+					filter: `event_id=eq.${eventId}`,
 				},
 				(payload) => {
 					setPoints((prev) => [payload.new, ...prev.slice(0, 99)])
@@ -45,25 +52,31 @@ export function useTelemetry(isCockpit = true) {
 			)
 			.subscribe()
 
-		return () => supabase.removeChannel(channel)
-	}, [])
+		return () => {
+			supabase.removeChannel(channel)
+			setPoints([])
+		}
+	}, [eventId])
 
-	// 2. GPS LINK: Track location for map, upload ONLY if isCockpit
+	// 3. GPS Link: Conditional Upload (The Geofence)
 	useEffect(() => {
 		let watchId
+		if (!eventId || !isCockpit || !eventMeta) return
 
 		const sendTelemetry = async (coords) => {
-			if (!isCockpit) return
+			// 🚩 PERIMETER ENFORCEMENT
+			const distance = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
 
-			const { latitude, longitude } = coords
-			const { error } = await supabase.from('telemetry').insert([
-				{
-					event_id: EVENT_ID,
-					latitude,
-					longitude,
-				},
-			])
-			if (error) console.error('Link Error:', error.message)
+			if (distance > eventMeta.radius_meters) {
+				console.warn(`[APEX] OUT OF BOUNDS: ${Math.round(distance)}m from center.`)
+				return // Kill the transmission if off-track
+			}
+
+			const { error } = await supabase.from('telemetry').insert([{ event_id: eventId, latitude: coords.latitude, longitude: coords.longitude }])
+
+			if (!error) {
+				fetch(`/api/py/compute/${eventId}`, { method: 'POST' }).catch(() => {})
+			}
 		}
 
 		if ('geolocation' in navigator) {
@@ -73,8 +86,6 @@ export function useTelemetry(isCockpit = true) {
 						latitude: position.coords.latitude,
 						longitude: position.coords.longitude,
 					}
-
-					// Updates local state for the DRV_LOCK button
 					setUserLocation(coords)
 
 					const now = Date.now()
@@ -84,18 +95,14 @@ export function useTelemetry(isCockpit = true) {
 					}
 				},
 				(err) => console.warn('GPS Wait:', err.message),
-				{
-					enableHighAccuracy: true,
-					maximumAge: 0,
-					timeout: 10000,
-				},
+				{ enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
 			)
 		}
 
 		return () => {
 			if (watchId) navigator.geolocation.clearWatch(watchId)
 		}
-	}, [isCockpit])
+	}, [eventId, isCockpit, eventMeta])
 
-	return { points, userLocation }
+	return { points, userLocation, eventMeta }
 }

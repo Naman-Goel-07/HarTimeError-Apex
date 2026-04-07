@@ -1,23 +1,21 @@
 'use client'
 
 import { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet'
-import { Target } from 'lucide-react' // Add this for the tactical icon
+import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
+import { Target, Satellite } from 'lucide-react'
+import 'leaflet/dist/leaflet.css'
 
-// This helper component handles the manual "Jump" logic
+// 🏁 Helper: Smooth camera transition to a specific point
 function LocateControl({ userLocation }) {
 	const map = useMap()
-
 	const handleJump = () => {
 		if (userLocation) {
-			// flyTo creates a smooth F1-style camera transition
 			map.flyTo([userLocation.latitude, userLocation.longitude], 18, {
-				duration: 1.5, // 1.5 seconds to "zoom in"
+				duration: 1.5,
 				easeLinearity: 0.25,
 			})
 		}
 	}
-
 	if (!userLocation) return null
 
 	return (
@@ -38,6 +36,7 @@ function LocateControl({ userLocation }) {
 	)
 }
 
+// 🏁 Helper: Forces the map to update its view when coords change
 function RecenterMap({ coords }) {
 	const map = useMap()
 	useEffect(() => {
@@ -48,87 +47,94 @@ function RecenterMap({ coords }) {
 	return null
 }
 
-// Accept userLocation as a prop
-export default function StrategyMap({ points = [], userLocation = null }) {
-	const defaultCenter = [28.7041, 77.1025]
-
+export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
+	// 🏁 FALLBACK CHAIN: Finding the center of the universe
 	const currentCenter = useMemo(() => {
+		// 1. Database Geofence Center (Best)
+		if (geofence?.center_lat && geofence?.center_long) {
+			return [geofence.center_lat, geofence.center_long]
+		}
+		// 2. Latest Telemetry Data (Active)
 		if (points && points.length > 0) {
 			return [points[0].latitude, points[0].longitude]
 		}
-		return defaultCenter
-	}, [points])
+		// 3. Admin's Current GPS (Emergency)
+		if (userLocation) {
+			return [userLocation.latitude, userLocation.longitude]
+		}
+		return null
+	}, [points, geofence, userLocation])
 
-	const renderPoints = useMemo(() => {
-		return points.map((p, idx) => {
-			const isNewest = idx < 5
-			return (
-				<CircleMarker
-					key={p.id || idx}
-					center={[p.latitude, p.longitude]}
-					radius={isNewest ? 7 : 4}
-					pathOptions={{
-						fillColor: isNewest ? '#00eeff' : '#00b8cc',
-						color: '#ffffff',
-						weight: 0.5,
-						opacity: 0.9,
-						fillOpacity: 0.7,
-					}}
-				/>
-			)
-		})
-	}, [points])
-
-	if (typeof window === 'undefined') {
-		return <div className="w-full h-full bg-carbon flex items-center justify-center font-mono text-data">BOOTING_MAP_SYSTEM...</div>
+	// 🏁 LOADING GUARD: No map rendered until coordinates exist
+	if (!currentCenter || typeof window === 'undefined') {
+		return (
+			<div className="w-full h-full bg-[#0b0b0b] flex flex-col items-center justify-center font-mono border border-[#222] rounded-xl">
+				<Satellite className="w-8 h-8 text-[#00eeff]/40 mb-4 animate-bounce" />
+				<span className="text-[#00eeff] text-[10px] uppercase tracking-[0.4em] animate-pulse">Awaiting_Satellite_Lock...</span>
+			</div>
+		)
 	}
 
 	return (
-		<div className="w-full h-full relative bg-carbon overflow-hidden rounded-xl border border-chassis">
+		<div className="w-full h-full relative bg-[#0b0b0b] overflow-hidden rounded-xl border border-[#222]">
 			<MapContainer
 				center={currentCenter}
-				zoom={16}
+				zoom={17}
 				scrollWheelZoom={true}
 				style={{ height: '100%', width: '100%', background: '#0b0b0b' }}
 				zoomControl={false}
 			>
 				<TileLayer attribution="&copy; CARTO" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-				{/* <TileLayer attribution="&copy; CARTO" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /> */}
-				{/* <TileLayer attribution="&copy; CARTO" url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" /> */}
 
-				{/* NEW: The Tactical Lock Button */}
+				{/* 🏁 GEOFENCE: Visual Boundary */}
+				{geofence?.center_lat && (
+					<Circle
+						center={[geofence.center_lat, geofence.center_long]}
+						radius={geofence.radius_meters || 500}
+						pathOptions={{
+							color: '#00eeff',
+							fillColor: '#00eeff',
+							fillOpacity: 0.05,
+							weight: 1,
+							dashArray: '10, 10',
+						}}
+					/>
+				)}
+
 				<LocateControl userLocation={userLocation} />
-
 				<RecenterMap coords={currentCenter} />
-				{renderPoints}
 
+				{/* 🏁 TELEMETRY DOTS */}
+				{points.map((p, idx) => (
+					<CircleMarker
+						key={p.id || idx}
+						center={[p.latitude, p.longitude]}
+						radius={idx < 5 ? 7 : 4} // Newer points are larger
+						pathOptions={{
+							fillColor: idx < 5 ? '#00eeff' : '#00b8cc',
+							color: '#ffffff',
+							weight: 0.5,
+							fillOpacity: 0.7,
+						}}
+					/>
+				))}
+
+				{/* Grid Overlay */}
 				<div
-					className="absolute inset-0 pointer-events-none z-[400] opacity-15"
+					className="absolute inset-0 pointer-events-none z-[400] opacity-10"
 					style={{
-						backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)
-            `,
+						backgroundImage:
+							'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)',
 						backgroundSize: '40px 40px',
 					}}
 				/>
 			</MapContainer>
 
-			{/* F1 HUD Metadata Overlays */}
+			{/* HUD Overlays */}
 			<div className="absolute top-6 left-6 z-[1000] flex flex-col gap-2 pointer-events-none">
-				<div className="bg-black/80 border-l-4 border-neon-green p-3 backdrop-blur-md flex flex-col">
-					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">System Status</span>
-					<span className="text-[#00ff66] font-display text-sm animate-pulse">STRATEGY_ENGINE_ONLINE</span>
-				</div>
-			</div>
-
-			<div className="absolute bottom-6 right-6 z-[1000] font-mono flex flex-col items-end gap-1 pointer-events-none">
-				<div className="bg-black/80 border-r-4 border-[#ff3333] p-2 backdrop-blur-md text-right">
-					<span className="text-[10px] text-gray-400 uppercase">Live Telemetry Feed</span>
-					<div className="flex items-center gap-2 justify-end">
-						<span className="text-white font-display text-lg">{points.length}</span>
-						<span className="text-[10px] text-gray-500 uppercase">Active Units</span>
-					</div>
+				<div className="bg-black/80 border-l-4 border-[#00ff66] p-3 backdrop-blur-md flex flex-col">
+					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest leading-none mb-1">System Status</span>
+					<span className="text-[#00ff66] font-bold text-xs animate-pulse tracking-tighter uppercase">Strategy_Engine_Online</span>
 				</div>
 			</div>
 		</div>
