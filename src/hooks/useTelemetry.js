@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { v4 as uuidv4 } from 'uuid' // You may need: npm install uuid
 
 function getDistance(lat1, lon1, lat2, lon2) {
 	const R = 6371e3
@@ -18,7 +17,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
 
-	// 🆔 Generate/Retrieve a Unique Device ID for this session
+	// Generate/Retrieve a Unique Device ID for this session
 	const deviceIdRef = useRef(null)
 	useEffect(() => {
 		const savedId = localStorage.getItem('apex_device_id')
