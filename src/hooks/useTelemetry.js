@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 
 // Haversine Formula: GPS Distance Math
 function getDistance(lat1, lon1, lat2, lon2) {
-	const R = 6371e3 // Earth radius in meters
+	const R = 6371e3
 	const φ1 = (lat1 * Math.PI) / 180
 	const φ2 = (lat2 * Math.PI) / 180
 	const Δφ = ((lat2 - lat1) * Math.PI) / 180
@@ -17,10 +17,9 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const [userLocation, setUserLocation] = useState(null)
 	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
-	const deviceIdRef = useRef(null)
+	const deviceIdRef = useRef('DRV-INIT') // Default non-null fallback
 	const THROTTLE_MS = 10000
 
-	// Client-Side ID Generation: Safe for Vercel
 	useEffect(() => {
 		if (typeof window !== 'undefined') {
 			const savedId = localStorage.getItem('apex_device_id')
@@ -30,7 +29,6 @@ export function useTelemetry(eventId, isCockpit = true) {
 		}
 	}, [])
 
-	// 1. Fetch Event Perimeter
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
@@ -38,13 +36,12 @@ export function useTelemetry(eventId, isCockpit = true) {
 				const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
 				if (data) setEventMeta(data)
 			} catch (e) {
-				console.error('Meta fetch error', e)
+				console.error('[APEX] Meta fetch error', e)
 			}
 		}
 		fetchMeta()
 	}, [eventId])
 
-	// 2. Real-time Data Stream
 	useEffect(() => {
 		if (!eventId) return
 		const channel = supabase
@@ -58,7 +55,10 @@ export function useTelemetry(eventId, isCockpit = true) {
 					filter: `event_id=eq.${eventId}`,
 				},
 				(payload) => {
-					setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
+					// 🚩 SAFETY: Ensure payload.new exists before updating state
+					if (payload?.new) {
+						setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
+					}
 				},
 			)
 			.subscribe()
@@ -69,12 +69,13 @@ export function useTelemetry(eventId, isCockpit = true) {
 		}
 	}, [eventId])
 
-	// 3. GPS Link: navigator check is critical for production
 	useEffect(() => {
 		let watchId
 		if (!eventId || !isCockpit || !eventMeta) return
 
 		const sendTelemetry = async (coords) => {
+			if (!coords?.latitude || !coords?.longitude) return
+
 			const dist = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
 			if (dist > (eventMeta.radius_meters || 1000)) return
 
@@ -106,7 +107,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 			)
 		}
 		return () => {
-			if (watchId) navigator.geolocation.clearWatch(watchId)
+			if (watchId && navigator.geolocation) navigator.geolocation.clearWatch(watchId)
 		}
 	}, [eventId, isCockpit, eventMeta])
 

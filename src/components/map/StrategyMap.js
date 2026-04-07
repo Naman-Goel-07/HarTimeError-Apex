@@ -4,9 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
 import { Target, Satellite } from 'lucide-react'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 
-// 🛠️ FIX: Leaflet marker icons break in production builds. This fixes them.
 if (typeof window !== 'undefined') {
 	delete L.Icon.Default.prototype._getIconUrl
 	L.Icon.Default.mergeOptions({
@@ -18,7 +16,7 @@ if (typeof window !== 'undefined') {
 
 function LocateControl({ userLocation }) {
 	const map = useMap()
-	const isLocked = !!userLocation
+	const isLocked = !!(userLocation?.latitude && userLocation?.longitude)
 
 	const handleJump = () => {
 		if (isLocked) {
@@ -54,15 +52,18 @@ function LocateControl({ userLocation }) {
 export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
 	const [mounted, setMounted] = useState(false)
 
-	// 🏁 Mount Guard: Prevents SSR crashes during Vercel build
 	useEffect(() => {
 		setMounted(true)
 	}, [])
 
 	const devices = useMemo(() => {
-		if (!points || points.length === 0) return {}
 		const groups = {}
+		if (!points || !Array.isArray(points)) return groups
+
 		points.forEach((p) => {
+			// 🚩 SAFETY: Ignore null points or points without coords
+			if (!p || typeof p.latitude !== 'number' || typeof p.longitude !== 'number') return
+
 			const id = p.device_id || 'unknown'
 			if (!groups[id]) groups[id] = []
 			groups[id].push(p)
@@ -71,16 +72,21 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 	}, [points])
 
 	const currentCenter = useMemo(() => {
-		if (geofence?.center_lat) return [geofence.center_lat, geofence.center_long]
-		if (userLocation) return [userLocation.latitude, userLocation.longitude]
-		return [0, 0]
+		// SAFETY: Ensure both lat AND long exist before returning
+		if (geofence?.center_lat && geofence?.center_long) {
+			return [geofence.center_lat, geofence.center_long]
+		}
+		if (userLocation?.latitude && userLocation?.longitude) {
+			return [userLocation.latitude, userLocation.longitude]
+		}
+		return null // Return null to stay in loading state
 	}, [geofence, userLocation])
 
-	if (!mounted || typeof window === 'undefined') {
+	if (!mounted || typeof window === 'undefined' || !currentCenter) {
 		return (
 			<div className="w-full h-full bg-[#0b0b0b] flex flex-col items-center justify-center border border-[#222] rounded-xl">
 				<Satellite className="w-8 h-8 text-[#00eeff]/40 mb-4 animate-bounce" />
-				<span className="text-[#00eeff] text-[10px] uppercase tracking-widest animate-pulse">Initializing_Tactical_Link...</span>
+				<span className="text-[#00eeff] text-[10px] uppercase tracking-widest animate-pulse">Establishing_Satellite_Link...</span>
 			</div>
 		)
 	}
@@ -96,7 +102,7 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 			>
 				<TileLayer attribution="&copy; CARTO" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-				{geofence?.center_lat && (
+				{geofence?.center_lat && geofence?.center_long && (
 					<Circle
 						center={[geofence.center_lat, geofence.center_long]}
 						radius={geofence.radius_meters || 500}
@@ -107,6 +113,7 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 				<LocateControl userLocation={userLocation} />
 
 				{Object.entries(devices).map(([deviceId, history]) => {
+					if (!history || history.length === 0) return null
 					const latest = history[0]
 					const trail = history.slice(1, 10)
 
