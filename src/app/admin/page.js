@@ -41,9 +41,14 @@ export default function AdminPortal() {
 						</div>
 						<h1 className="text-4xl lg:text-6xl font-black tracking-tighter">GLOBAL_SECTORS</h1>
 					</div>
-					<button className="flex items-center gap-2 bg-[#1a1a1a] border border-[#222] px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest hover:border-[#00ff66] transition-all">
+
+					{/* Changed from <button> to <Link> to route to the creation page */}
+					<Link
+						href="/admin/create"
+						className="flex items-center gap-2 bg-[#1a1a1a] border border-[#222] px-6 py-3 rounded-xl text-[10px] uppercase tracking-widest hover:border-[#00ff66] transition-all"
+					>
 						<Plus className="w-4 h-4 text-[#00ff66]" /> Create New Sector
-					</button>
+					</Link>
 				</div>
 
 				{/* Event Grid */}
