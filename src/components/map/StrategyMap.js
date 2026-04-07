@@ -2,16 +2,34 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
-import { Target, Satellite } from 'lucide-react'
+import { Target, Satellite, MapPin } from 'lucide-react'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-function LocateControl({ userLocation }) {
+// 🛠️ Leaflet Icon Fix for Production
+if (typeof window !== 'undefined') {
+	delete L.Icon.Default.prototype._getIconUrl
+	L.Icon.Default.mergeOptions({
+		iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+		iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+		shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+	})
+}
+
+// Button now jumps to the Event (Geofence) coordinates
+function LocateControl({ geofence }) {
 	const map = useMap()
-	const isLocked = !!userLocation
+
+	// Check if the event center coordinates exist
+	const hasEventCoords = !!(geofence?.center_lat && geofence?.center_long)
 
 	const handleJump = () => {
-		if (isLocked) {
-			map.flyTo([userLocation.latitude, userLocation.longitude], 18, { duration: 1.5 })
+		if (hasEventCoords) {
+			// Zoom level 17 gives a good tactical overview of the 500m radius
+			map.flyTo([geofence.center_lat, geofence.center_long], 17, {
+				duration: 1.5,
+				easeLinearity: 0.25,
+			})
 		}
 	}
 
@@ -19,17 +37,17 @@ function LocateControl({ userLocation }) {
 		<div className="absolute top-24 left-6 z-[1000]">
 			<button
 				onClick={handleJump}
-				disabled={!isLocked}
+				disabled={!hasEventCoords}
 				className={`group flex items-center gap-3 bg-black/80 border p-2 pr-4 rounded-sm backdrop-blur-md transition-all active:scale-95 shadow-lg 
-                    ${isLocked ? 'border-[#222] hover:border-[#00eeff]' : 'border-red-900/50 opacity-50 cursor-not-allowed'}`}
+                    ${hasEventCoords ? 'border-[#222] hover:border-[#00eeff]' : 'border-red-900/50 opacity-50 cursor-not-allowed'}`}
 			>
-				<div className={`${isLocked ? 'bg-[#00eeff]/10' : 'bg-red-500/10'} p-1.5 rounded-sm`}>
-					<Target className={`w-4 h-4 ${isLocked ? 'text-[#00eeff] animate-pulse' : 'text-red-500'}`} />
+				<div className={`${hasEventCoords ? 'bg-[#00eeff]/10' : 'bg-red-500/10'} p-1.5 rounded-sm`}>
+					<MapPin className={`w-4 h-4 ${hasEventCoords ? 'text-[#00eeff] animate-pulse' : 'text-red-500'}`} />
 				</div>
 				<div className="flex flex-col items-start leading-none">
-					<span className="text-[10px] font-mono text-gray-500 uppercase tracking-tighter">{isLocked ? 'Tactical' : 'Offline'}</span>
-					<span className={`text-xs font-bold uppercase tracking-wider ${isLocked ? 'text-white' : 'text-red-500'}`}>
-						{isLocked ? 'DRV_LOCK' : 'NO_SIGNAL'}
+					<span className="text-[10px] font-mono text-gray-500 uppercase tracking-tighter">{hasEventCoords ? 'Sector' : 'Offline'}</span>
+					<span className={`text-xs font-bold uppercase tracking-wider ${hasEventCoords ? 'text-white' : 'text-red-500'}`}>
+						{hasEventCoords ? 'EVENT_LOCK' : 'NO_SIGNAL'}
 					</span>
 				</div>
 			</button>
@@ -39,15 +57,21 @@ function LocateControl({ userLocation }) {
 
 export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
 	const [mounted, setMounted] = useState(false)
+
 	useEffect(() => {
 		setMounted(true)
 	}, [])
 
-	// 🧠 GROUPING LOGIC: Organizes flat points into { deviceId: [latestPoint, ...history] }
+	// GROUPING LOGIC: Organizes flat points into { deviceId: [latestPoint, ...history] }
 	const devices = useMemo(() => {
 		const groups = {}
+		if (!Array.isArray(points)) return groups
+
 		points.forEach((p) => {
-			const id = p.device_id || 'unknown'
+			// Added filter to ignore "DRV-SYNCING" to prevent ghost counts
+			if (!p || !p.device_id || p.device_id === 'DRV-SYNCING') return
+
+			const id = p.device_id
 			if (!groups[id]) groups[id] = []
 			groups[id].push(p)
 		})
@@ -82,7 +106,8 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 					/>
 				)}
 
-				<LocateControl userLocation={userLocation} />
+				{/* Passing geofence instead of userLocation */}
+				<LocateControl geofence={geofence} />
 
 				{/* 🚗 RENDER DRIVERS */}
 				{Object.entries(devices).map(([deviceId, history]) => {
