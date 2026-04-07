@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
-import { Target, Satellite, MapPin, Sun, Moon } from 'lucide-react' // 🚩 Added Sun and Moon
+import { Target, Satellite, MapPin, Sun, Moon } from 'lucide-react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -53,19 +53,16 @@ function LocateControl({ geofence }) {
 
 export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
 	const [mounted, setMounted] = useState(false)
-	const [mapTheme, setMapTheme] = useState('dark') // 🏁 State for the theme
+	const [mapTheme, setMapTheme] = useState('dark')
 
-	// HYDRATION & LOCAL STORAGE
 	useEffect(() => {
 		setMounted(true)
-		// Check if the user has a saved preference when the component mounts
 		const savedTheme = localStorage.getItem('apex_map_theme')
 		if (savedTheme === 'light' || savedTheme === 'dark') {
 			setMapTheme(savedTheme)
 		}
 	}, [])
 
-	// TOGGLE HANDLER: Updates state AND local storage
 	const toggleTheme = () => {
 		setMapTheme((prevTheme) => {
 			const newTheme = prevTheme === 'dark' ? 'light' : 'dark'
@@ -74,6 +71,7 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 		})
 	}
 
+	// GROUPING LOGIC: Organizes flat points into drivers
 	const devices = useMemo(() => {
 		const groups = {}
 		if (!Array.isArray(points)) return groups
@@ -87,6 +85,32 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 		})
 		return groups
 	}, [points])
+
+	// NEW: SPATIAL CLUSTERING ENGINE (The Heatmap Logic)
+	const densityZones = useMemo(() => {
+		const zones = []
+		// Grab only the most recent location for each active unit
+		const activeLocations = Object.values(devices).map((history) => history[0])
+
+		activeLocations.forEach((pt) => {
+			// ~0.0004 degrees is roughly 40 meters. We use this as our clustering threshold.
+			const CLUSTER_THRESHOLD = 0.0004
+
+			let foundZone = zones.find((z) => Math.abs(z.lat - pt.latitude) < CLUSTER_THRESHOLD && Math.abs(z.lng - pt.longitude) < CLUSTER_THRESHOLD)
+
+			if (foundZone) {
+				// Average the coordinates to keep the heat blob centered over the group
+				foundZone.lat = (foundZone.lat * foundZone.count + pt.latitude) / (foundZone.count + 1)
+				foundZone.lng = (foundZone.lng * foundZone.count + pt.longitude) / (foundZone.count + 1)
+				foundZone.count += 1
+			} else {
+				// Initialize a new zone
+				zones.push({ lat: pt.latitude, lng: pt.longitude, count: 1 })
+			}
+		})
+
+		return zones
+	}, [devices])
 
 	const currentCenter = useMemo(() => {
 		if (geofence?.center_lat) return [geofence.center_lat, geofence.center_long]
@@ -103,12 +127,10 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 		)
 	}
 
-	// THEME VARIABLES
 	const tileUrl =
 		mapTheme === 'dark' ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-
 	const mapBgColor = mapTheme === 'dark' ? '#0b0b0b' : '#e5e7eb'
-	const primaryColor = mapTheme === 'dark' ? '#00eeff' : '#0055ff' // Darker blue for visibility on light mode
+	const primaryColor = mapTheme === 'dark' ? '#00eeff' : '#0055ff'
 	const borderColor = mapTheme === 'dark' ? '#fff' : '#111'
 
 	return (
@@ -135,17 +157,48 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 
 				<LocateControl geofence={geofence} />
 
-				{/* RENDER DRIVERS */}
+				{/* RENDER HEATMAP ZONES (Rendered UNDER the individuals) */}
+				{densityZones.map((zone, i) => {
+					if (zone.count < 2) return null // Only draw zones for groups of 2 or more
+
+					// Determine Zone Threat Level
+					const isHigh = zone.count >= 4
+					const isMedium = zone.count >= 2
+
+					// Set tactical colors (Red for high, Yellow for medium)
+					const zoneColor = isHigh ? '#ff3333' : isMedium ? '#ffcc00' : primaryColor
+					// Grow the radius based on crowd size
+					const zoneRadius = 20 + zone.count * 8
+					// Cap opacity at 0.5 so you can still see the map underneath
+					const zoneOpacity = Math.min(0.5, 0.15 + zone.count * 0.05)
+
+					return (
+						<Circle
+							key={`heatmap-zone-${i}`}
+							center={[zone.lat, zone.lng]}
+							radius={zoneRadius}
+							pathOptions={{
+								color: zoneColor,
+								fillColor: zoneColor,
+								fillOpacity: zoneOpacity,
+								weight: 1,
+								className: isHigh ? 'animate-pulse' : '', // High density pulses
+							}}
+						/>
+					)
+				})}
+
+				{/* RENDER INDIVIDUALS */}
 				{Object.entries(devices).map(([deviceId, history]) => {
 					const latest = history[0]
 					const trail = history.slice(1, 12)
 
 					return (
 						<div key={deviceId}>
-							{/* Main Active Car Dot */}
+							{/* Main Active Dot */}
 							<CircleMarker
 								center={[latest.latitude, latest.longitude]}
-								radius={8}
+								radius={6}
 								pathOptions={{
 									fillColor: primaryColor,
 									color: borderColor,
@@ -153,12 +206,12 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 									fillOpacity: 1,
 								}}
 							/>
-							{/* History Thing (The Trail) */}
+							{/* History Trail */}
 							{trail.map((tp, i) => (
 								<CircleMarker
 									key={`${deviceId}-trail-${i}`}
 									center={[tp.latitude, tp.longitude]}
-									radius={3}
+									radius={2}
 									pathOptions={{
 										fillColor: primaryColor,
 										color: 'transparent',
@@ -181,7 +234,7 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 				</div>
 			</div>
 
-			{/* THEME TOGGLE BUTTON */}
+			{/* THEME TOGGLE */}
 			<div className="absolute top-24 right-6 z-[1000]">
 				<button
 					onClick={toggleTheme}
