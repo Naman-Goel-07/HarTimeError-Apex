@@ -2,12 +2,13 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useMemo, useEffect } from 'react'
-import { useParams } from 'next/navigation' // 🏁 Grab ID from URL
-import styles from '../../page.module.css' // Adjusted path to reach the css
+import { useMemo } from 'react'
+import { useParams } from 'next/navigation'
+import styles from '../../page.module.css'
 import { useTelemetry } from '@/hooks/useTelemetry'
 import { computeHeatBlobs, determineStrategyZone } from '@/lib/crowdLogic'
 import { useCompass } from '@/hooks/useCompass'
+import { useGuidance } from '@/hooks/useGuidance'
 import dynamicImport from 'next/dynamic'
 
 // Dynamic Imports
@@ -24,24 +25,27 @@ export default function EventCockpitPage() {
 	const params = useParams()
 	const eventId = params.id
 
-	// 🏁 POWER UNIT: Dynamic Link to eventId
+	// 1. TELEMETRY: Get live GPS data
 	const { points, userLocation } = useTelemetry(eventId, true)
-	const { heading, mode, isSupported, requestPermission, permissionDenied, permissionGranted } = useCompass(userLocation)
 
-	const safeHeading = useMemo(() => (isNaN(heading) || heading === undefined || heading === null ? 0 : heading), [heading])
+	// 2. SENSORS: Get compass hardware data
+	const { heading, cardinalDirection, isSupported, requestPermission, permissionGranted } = useCompass()
 
+	// Fallback if compass is initializing
+	const safeHeading = useMemo(() => (isNaN(heading) || heading === null ? 0 : heading), [heading])
+
+	// 3. MATH ENGINE: Translate GPS to Radar Blobs
 	const blobs = useMemo(() => {
 		if (!userLocation) return []
+		// Pass 500m as the max radius of your radar screen
 		return computeHeatBlobs(userLocation.latitude, userLocation.longitude, points, 500)
 	}, [userLocation, points])
 
+	// Sector status (Red/Yellow/Green overall warning)
 	const zone = useMemo(() => determineStrategyZone(blobs), [blobs])
 
-	const guidance = useMemo(() => {
-		if (zone.status === 'RED') return { message: 'DIRTY AIR AHEAD', suggestion: 'Divert 45° Right', severity: 'high' }
-		if (zone.status === 'YELLOW') return { message: 'CAUTION: RISING DENSITY', suggestion: 'Maintain Speed, Monitor Radar', severity: 'medium' }
-		return { message: 'SECTOR CLEAR', suggestion: 'Proceed on Current Line', severity: 'low' }
-	}, [zone])
+	// 4. TACTICAL GUIDANCE: AI calculates evasive maneuvers based on blobs + heading
+	const guidance = useGuidance(safeHeading, blobs)
 
 	return (
 		<main className={styles.pageWrapper}>
@@ -76,7 +80,8 @@ export default function EventCockpitPage() {
 
 			<section className={styles.radarSection}>
 				<div className={styles.radarTopRow}>
-					<StatsBar overallDensity={zone.status} heading={Math.round(safeHeading)} cardinalDirection={'N'} />
+					{/* Passed dynamic cardinalDirection to the HUD */}
+					<StatsBar overallDensity={zone.status} heading={Math.round(safeHeading)} cardinalDirection={cardinalDirection || 'N'} />
 					<Compass heading={safeHeading} />
 				</div>
 
@@ -96,7 +101,10 @@ export default function EventCockpitPage() {
 				<div className="text-center mt-4 font-mono">
 					<span className="glow-text-cyan font-bold tracking-widest text-lg">HDG {String(Math.round(safeHeading)).padStart(3, '0')}°</span>
 					<div className="text-[10px] text-[#8892a4] uppercase tracking-wider mt-1 opacity-80">
-						Sensor: <span className="text-[#00eeff] font-bold">{mode}</span>
+						Sensor:{' '}
+						<span className={permissionGranted ? 'text-[#00ff66] font-bold' : 'text-[#ffcc00] font-bold'}>
+							{permissionGranted ? 'ACTIVE' : 'STANDBY'}
+						</span>
 					</div>
 				</div>
 
@@ -104,9 +112,9 @@ export default function EventCockpitPage() {
 					{!permissionGranted && isSupported && (
 						<button
 							onClick={requestPermission}
-							className="bg-[#121212] border border-[#00eeff]/50 text-[#00eeff] text-[10px] px-4 py-2 rounded-full uppercase tracking-widest"
+							className="bg-[#121212] border border-[#00eeff]/50 text-[#00eeff] text-[10px] px-4 py-2 rounded-full uppercase tracking-widest hover:bg-[#00eeff]/10"
 						>
-							Enable Compass
+							Sync Compass
 						</button>
 					)}
 				</div>
@@ -116,12 +124,19 @@ export default function EventCockpitPage() {
 				<div
 					style={{
 						background: 'var(--bg-elevated)',
-						borderLeft: `4px solid ${zone.status === 'RED' ? 'var(--neon-red)' : 'var(--neon-cyan)'}`,
+						// Dynamic border color based on AI Threat Severity
+						borderLeft: `4px solid ${
+							guidance.severity === 'high' ? 'var(--neon-red)' : guidance.severity === 'medium' ? 'var(--neon-yellow)' : 'var(--neon-cyan)'
+						}`,
 						padding: '16px',
 						borderRadius: '4px',
 					}}
 				>
-					<div className={`text-[10px] mb-1 font-mono tracking-tighter ${zone.status === 'RED' ? 'text-red-500' : 'text-cyan-400'}`}>
+					<div
+						className={`text-[10px] mb-1 font-mono tracking-tighter ${
+							guidance.severity === 'high' ? 'text-red-500' : guidance.severity === 'medium' ? 'text-yellow-500' : 'text-cyan-400'
+						}`}
+					>
 						{guidance.message}
 					</div>
 					<div className="text-lg font-bold font-display uppercase tracking-tight text-white/90">{guidance.suggestion}</div>
