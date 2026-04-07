@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
+// 🏁 Haversine Formula: Distance in meters
 function getDistance(lat1, lon1, lat2, lon2) {
 	const R = 6371e3
 	const φ1 = (lat1 * Math.PI) / 180
@@ -16,18 +17,20 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const [userLocation, setUserLocation] = useState(null)
 	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
-
-	// Generate/Retrieve a Unique Device ID for this session
 	const deviceIdRef = useRef(null)
-	useEffect(() => {
-		const savedId = localStorage.getItem('apex_device_id')
-		const newId = savedId || `DRV-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
-		if (!savedId) localStorage.setItem('apex_device_id', newId)
-		deviceIdRef.current = newId
-	}, [])
-
 	const THROTTLE_MS = 10000
 
+	// Generate/Retrieve Device ID (Client-side only)
+	useEffect(() => {
+		if (typeof window !== 'undefined') {
+			const savedId = localStorage.getItem('apex_device_id')
+			const newId = savedId || `DRV-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
+			if (!savedId) localStorage.setItem('apex_device_id', newId)
+			deviceIdRef.current = newId
+		}
+	}, [])
+
+	// 1. Fetch Geofence
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
@@ -37,14 +40,23 @@ export function useTelemetry(eventId, isCockpit = true) {
 		fetchMeta()
 	}, [eventId])
 
+	// 2. Real-time Subscription
 	useEffect(() => {
 		if (!eventId) return
 		const channel = supabase
 			.channel(`live-telemetry-${eventId}`)
-			.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry', filter: `event_id=eq.${eventId}` }, (payload) => {
-				// Keep the last 50 points total to prevent memory lag
-				setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
-			})
+			.on(
+				'postgres_changes',
+				{
+					event: 'INSERT',
+					schema: 'public',
+					table: 'telemetry',
+					filter: `event_id=eq.${eventId}`,
+				},
+				(payload) => {
+					setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
+				},
+			)
 			.subscribe()
 
 		return () => {
@@ -53,17 +65,19 @@ export function useTelemetry(eventId, isCockpit = true) {
 		}
 	}, [eventId])
 
+	// 3. GPS Uploading
 	useEffect(() => {
 		let watchId
 		if (!eventId || !isCockpit) return
 
 		const sendTelemetry = async (coords) => {
 			if (!eventMeta) return
-			const distance = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
-			if (distance > (eventMeta.radius_meters || 1000)) return
+			const dist = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
 
-			// 🚩 Notice we now include device_id (Ensure this column exists in your Supabase table!)
-			const { error } = await supabase.from('telemetry').insert([
+			// Only upload if within radius (default 1km fallback)
+			if (dist > (eventMeta.radius_meters || 1000)) return
+
+			await supabase.from('telemetry').insert([
 				{
 					event_id: eventId,
 					latitude: coords.latitude,
@@ -72,10 +86,10 @@ export function useTelemetry(eventId, isCockpit = true) {
 				},
 			])
 
-			if (!error) fetch(`/api/py/compute/${eventId}`, { method: 'POST' }).catch(() => {})
+			fetch(`/api/py/compute/${eventId}`, { method: 'POST' }).catch(() => {})
 		}
 
-		if ('geolocation' in navigator) {
+		if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
 			watchId = navigator.geolocation.watchPosition(
 				(position) => {
 					const coords = { latitude: position.coords.latitude, longitude: position.coords.longitude }
@@ -86,7 +100,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 						lastSentRef.current = now
 					}
 				},
-				(err) => console.warn(err.message),
+				(err) => console.warn('GPS Signal:', err.message),
 				{ enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
 			)
 		}
