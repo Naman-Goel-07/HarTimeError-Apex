@@ -88,16 +88,16 @@ export function determineStrategyZone(blobs) {
 		return { status: 'GREEN', text: 'SECTOR CLEAR' }
 	}
 
-	// Check if anyone is dangerously close (e.g., within 50 meters)
-	const criticalThreat = blobs.some((b) => b.distance < 50)
+	// Check if anyone is dangerously close (e.g., within 0.5 meters)
+	const criticalThreat = blobs.some((b) => b.distance < 0.5)
 	if (criticalThreat) {
-		return { status: 'RED', text: 'DIRTY AIR' }
+		return { status: 'RED', text: 'TRAFFIC AHEAD' }
 	}
 
-	// Check if there is high traffic within 200 meters
-	const moderateThreat = blobs.some((b) => b.distance < 200)
+	// Check if there is high traffic within 2 meters
+	const moderateThreat = blobs.some((b) => b.distance < 2)
 	if (moderateThreat) {
-		return { status: 'YELLOW', text: 'TRAFFIC AHEAD' }
+		return { status: 'YELLOW', text: 'WARNING' }
 	}
 
 	return { status: 'GREEN', text: 'SECTOR CLEAR' }
