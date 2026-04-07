@@ -16,23 +16,31 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const [userLocation, setUserLocation] = useState(null)
 	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
-	const deviceIdRef = useRef('DRV-SYNCING') // Initial non-null value
+	const deviceIdRef = useRef('DRV-BOOT')
 	const THROTTLE_MS = 10000
 
 	useEffect(() => {
 		if (typeof window !== 'undefined') {
-			const savedId = localStorage.getItem('apex_device_id')
-			const newId = savedId || `DRV-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
-			if (!savedId) localStorage.setItem('apex_device_id', newId)
-			deviceIdRef.current = newId
+			try {
+				const savedId = localStorage.getItem('apex_device_id')
+				const newId = savedId || `DRV-${Math.random().toString(36).substr(2, 5).toUpperCase()}`
+				if (!savedId) localStorage.setItem('apex_device_id', newId)
+				deviceIdRef.current = newId
+			} catch (e) {
+				deviceIdRef.current = 'DRV-GUEST'
+			}
 		}
 	}, [])
 
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
-			const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
-			if (data) setEventMeta(data)
+			try {
+				const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
+				if (data) setEventMeta(data)
+			} catch (err) {
+				console.error('Meta Error:', err)
+			}
 		}
 		fetchMeta()
 	}, [eventId])
@@ -50,9 +58,9 @@ export function useTelemetry(eventId, isCockpit = true) {
 					filter: `event_id=eq.${eventId}`,
 				},
 				(payload) => {
-					// 🚩 CRITICAL SAFETY: Only update if payload.new exists
-					if (payload?.new) {
-						setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
+					// 🚩 SAFETY: Strict check for payload content
+					if (payload && payload.new && payload.new.latitude) {
+						setPoints((prev) => [payload.new, ...(Array.isArray(prev) ? prev.slice(0, 49) : [])])
 					}
 				},
 			)
@@ -69,21 +77,22 @@ export function useTelemetry(eventId, isCockpit = true) {
 		if (!eventId || !isCockpit || !eventMeta) return
 
 		const sendTelemetry = async (coords) => {
-			if (!coords?.latitude || !coords?.longitude) return
+			try {
+				const dist = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
+				if (dist > (eventMeta.radius_meters || 1000)) return
 
-			const dist = getDistance(coords.latitude, coords.longitude, eventMeta.center_lat, eventMeta.center_long)
-			if (dist > (eventMeta.radius_meters || 1000)) return
-
-			await supabase.from('telemetry').insert([
-				{
-					event_id: eventId,
-					latitude: coords.latitude,
-					longitude: coords.longitude,
-					device_id: deviceIdRef.current,
-				},
-			])
-
-			fetch(`/api/py/compute/${eventId}`, { method: 'POST' }).catch(() => {})
+				await supabase.from('telemetry').insert([
+					{
+						event_id: eventId,
+						latitude: coords.latitude,
+						longitude: coords.longitude,
+						device_id: deviceIdRef.current,
+					},
+				])
+				fetch(`/api/py/compute/${eventId}`, { method: 'POST' }).catch(() => {})
+			} catch (e) {
+				console.warn('Upload Failed', e)
+			}
 		}
 
 		if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
@@ -97,14 +106,14 @@ export function useTelemetry(eventId, isCockpit = true) {
 						lastSentRef.current = now
 					}
 				},
-				(err) => console.warn(err.message),
+				null,
 				{ enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
 			)
 		}
 		return () => {
-			if (watchId) navigator.geolocation.clearWatch(watchId)
+			if (watchId && navigator.geolocation) navigator.geolocation.clearWatch(watchId)
 		}
 	}, [eventId, isCockpit, eventMeta])
 
-	return { points, userLocation, eventMeta, deviceId: deviceIdRef.current }
+	return { points: Array.isArray(points) ? points : [], userLocation, eventMeta, deviceId: deviceIdRef.current }
 }
