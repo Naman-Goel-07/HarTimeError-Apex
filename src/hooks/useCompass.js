@@ -1,152 +1,108 @@
-"use client";
-import { useState, useEffect, useRef, useCallback } from "react";
+'use client'
 
-export function useCompass(userLocation = null) {
-  const [heading, setHeading] = useState(0);
-  const [isSupported, setIsSupported] = useState(true);
-  const [permissionGranted, setPermissionGranted] = useState(false);
-  const [permissionDenied, setPermissionDenied] = useState(false);
+import { useState, useEffect, useCallback } from 'react'
 
-  // GPS Fallback States
-  const previousLocationRef = useRef(null);
-  const [gpsHeading, setGpsHeading] = useState(null);
+/**
+ * Reads real-time device heading (0–360°) using the DeviceOrientation API.
+ * Handles iOS 13+ permissions and Android absolute alpha calculations.
+ *
+ * @param {Object} options
+ * @param {number} options.throttleMs - ms between React state updates to prevent render lag (default: 50ms)
+ * @returns {{ heading: number, cardinalDirection: string, isSupported: boolean, requestPermission: function, permissionGranted: boolean }}
+ */
+export function useCompass({ throttleMs = 50 } = {}) {
+	const [heading, setHeading] = useState(0)
+	const [isSupported, setIsSupported] = useState(true)
+	const [permissionGranted, setPermissionGranted] = useState(false)
 
-  const currentHeadingRef = useRef(0);
-  const lastUpdateRef = useRef(0);
+	// 1. Check support & initial permission state on mount
+	useEffect(() => {
+		if (typeof window === 'undefined') return
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+		if (!window.DeviceOrientationEvent) {
+			setIsSupported(false)
+			return
+		}
 
-    if (!window.DeviceOrientationEvent) {
-      console.log("DeviceOrientationEvent not supported");
-      setIsSupported(false);
-      return;
-    }
-    // If not iOS13+, it doesn't need explicit permission request
-    if (typeof window.DeviceOrientationEvent.requestPermission !== "function") {
-      console.log("Auto-granting compass permission (not iOS Safari)");
-      setPermissionGranted(true);
-    }
-  }, []);
+		// If device doesn't require explicit permission (Android / older iOS), grant it automatically
+		if (typeof DeviceOrientationEvent.requestPermission !== 'function') {
+			setPermissionGranted(true)
+		}
+	}, [])
 
-  const requestPermission = useCallback(async () => {
-    console.log("requestPermission clicked");
-    if (typeof window !== "undefined" && window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === "function") {
-      try {
-        console.log("Requesting compass permission...");
-        const permissionState = await window.DeviceOrientationEvent.requestPermission();
-        console.log("Permission state:", permissionState);
-        if (permissionState === "granted") {
-          setPermissionGranted(true);
-          setPermissionDenied(false);
-        } else {
-          console.warn("Compass permission denied by user");
-          setPermissionDenied(true);
-        }
-      } catch (error) {
-        console.error("Compass permission error:", error);
-        setPermissionDenied(true);
-      }
-    } else {
-      console.log("requestPermission not required, auto-granting");
-      setPermissionGranted(true);
-    }
-  }, []);
+	// 2. Request permission (MUST be called from a user interaction like onClick)
+	const requestPermission = useCallback(async () => {
+		if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+			try {
+				const permission = await DeviceOrientationEvent.requestPermission()
+				if (permission === 'granted') {
+					setPermissionGranted(true)
+				} else {
+					console.warn('Compass permission denied.')
+				}
+			} catch (error) {
+				console.error('Error requesting compass permission:', error)
+			}
+		} else {
+			setPermissionGranted(true)
+		}
+	}, [])
 
-  useEffect(() => {
-    if (!permissionGranted || !isSupported) return;
+	// 3. Listen to sensor data once permission is granted
+	useEffect(() => {
+		if (!permissionGranted || typeof window === 'undefined') return
 
-    const handleOrientation = (event) => {
-      let rawHeading = null;
+		let lastUpdate = 0
 
-      if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-        // iOS
-        rawHeading = event.webkitCompassHeading;
-      } else if (event.alpha !== null) {
-        // Android (alpha rotates counter-clockwise. Typically compass heading is 360 - alpha)
-        rawHeading = 360 - event.alpha;
-      }
+		const handleOrientation = (event) => {
+			const now = Date.now()
+			if (now - lastUpdate < throttleMs) return // Prevent React from choking on high-frequency updates
 
-      if (rawHeading !== null && !isNaN(rawHeading)) {
-        // Normalize 0-360
-        rawHeading = (rawHeading + 360) % 360;
+			let newHeading = null
 
-        const now = Date.now();
-        if (now - lastUpdateRef.current < 50) return; // Throttle to 20fps
+			// iOS specific property
+			if (event.webkitCompassHeading !== undefined) {
+				newHeading = event.webkitCompassHeading
+			}
+			// Android / Standard absolute orientation
+			else if (event.absolute === true && event.alpha !== null) {
+				// alpha is degrees counter-clockwise from North. Compass needs clockwise.
+				newHeading = 360 - event.alpha
+			}
 
-        let current = currentHeadingRef.current;
-        let diff = rawHeading - current;
-        
-        // Shortest path interpolation
-        if (diff > 180) diff -= 360;
-        if (diff < -180) diff += 360;
+			if (newHeading !== null) {
+				setHeading(Math.round(newHeading))
+				lastUpdate = now
+			}
+		}
 
-        // Smooth if difference is noticeable
-        if (Math.abs(diff) > 0.5) {
-          const newHeading = (current + diff * 0.2 + 360) % 360;
-          currentHeadingRef.current = newHeading;
-          setHeading(newHeading);
-          lastUpdateRef.current = now;
-        }
-      }
-    };
+		// Android prefers 'deviceorientationabsolute', iOS uses 'deviceorientation'
+		const eventType = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation'
 
-    console.log("Attaching deviceorientation listener");
-    window.addEventListener("deviceorientation", handleOrientation);
-    window.addEventListener("deviceorientationabsolute", handleOrientation); // Android fallback
+		window.addEventListener(eventType, handleOrientation)
 
-    return () => {
-      window.removeEventListener("deviceorientation", handleOrientation);
-      window.removeEventListener("deviceorientationabsolute", handleOrientation);
-    };
-  }, [permissionGranted, isSupported]);
+		return () => {
+			window.removeEventListener(eventType, handleOrientation)
+		}
+	}, [permissionGranted, throttleMs])
 
-  // GPS Heading Calculation
-  useEffect(() => {
-    if (!userLocation) return;
-    
-    const prev = previousLocationRef.current;
-    if (prev) {
-      const R = 6371e3;
-      const lat1 = (prev.latitude * Math.PI) / 180;
-      const lat2 = (userLocation.latitude * Math.PI) / 180;
-      const deltaLat = ((userLocation.latitude - prev.latitude) * Math.PI) / 180;
-      const deltaLon = ((userLocation.longitude - prev.longitude) * Math.PI) / 180;
+	const cardinalDirection = getCardinalDirection(heading)
 
-      const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
+	return {
+		heading,
+		cardinalDirection,
+		isSupported,
+		requestPermission,
+		permissionGranted,
+	}
+}
 
-      if (distance > 0.5) { // At least 0.5m of movement to trigger heading update
-        const toRad = deg => deg * Math.PI / 180;
-        const toDeg = rad => rad * 180 / Math.PI;
-        
-        const dLon = toRad(userLocation.longitude - prev.longitude);
-        const y = Math.sin(dLon) * Math.cos(lat2);
-        const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-        
-        const brng = (toDeg(Math.atan2(y, x)) + 360) % 360;
-        if (!isNaN(brng)) {
-          console.log("GPS heading updated:", brng);
-          setGpsHeading(brng);
-        }
-      }
-    }
-    previousLocationRef.current = userLocation;
-  }, [userLocation]);
-
-  let mode = "compass";
-  let finalHeading = isNaN(heading) ? 0 : heading;
-
-  if (!isSupported || permissionDenied || !permissionGranted) {
-    if (gpsHeading !== null && !isNaN(gpsHeading)) {
-      mode = "movement";
-      finalHeading = gpsHeading;
-    } else {
-      mode = "fallback";
-      finalHeading = 0;
-    }
-  }
-
-  return { heading: finalHeading || 0, mode, isSupported, requestPermission, permissionDenied, permissionGranted };
+/**
+ * Convert degrees to cardinal direction string
+ */
+function getCardinalDirection(deg) {
+	if (deg === null || isNaN(deg)) return 'N'
+	const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+	const index = Math.round(deg / 45) % 8
+	return directions[index]
 }
