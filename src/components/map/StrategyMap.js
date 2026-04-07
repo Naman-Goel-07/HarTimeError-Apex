@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
 import { Target, Satellite } from 'lucide-react'
 import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 if (typeof window !== 'undefined') {
 	delete L.Icon.Default.prototype._getIconUrl
@@ -33,7 +34,7 @@ function LocateControl({ userLocation }) {
 				onClick={handleJump}
 				disabled={!isLocked}
 				className={`group flex items-center gap-3 bg-black/90 border p-2 pr-4 rounded-sm backdrop-blur-xl transition-all active:scale-95 shadow-2xl
-                    ${isLocked ? 'border-[#222] hover:border-[#00eeff]' : 'border-red-500/30 opacity-60'}`}
+                    ${isLocked ? 'border-[#222] hover:border-[#00eeff]' : 'border-red-500/30 opacity-60 cursor-not-allowed'}`}
 			>
 				<div className={`${isLocked ? 'bg-[#00eeff]/10' : 'bg-red-500/10'} p-1.5 rounded-sm`}>
 					<Target className={`w-4 h-4 ${isLocked ? 'text-[#00eeff] animate-pulse' : 'text-red-500'}`} />
@@ -56,14 +57,13 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 		setMounted(true)
 	}, [])
 
+	// SAFETY: Ensure points is an array before processing
 	const devices = useMemo(() => {
 		const groups = {}
-		if (!points || !Array.isArray(points)) return groups
+		if (!Array.isArray(points)) return groups
 
 		points.forEach((p) => {
-			// 🚩 SAFETY: Ignore null points or points without coords
-			if (!p || typeof p.latitude !== 'number' || typeof p.longitude !== 'number') return
-
+			if (!p || !p.latitude || !p.longitude) return // Skip malformed pings
 			const id = p.device_id || 'unknown'
 			if (!groups[id]) groups[id] = []
 			groups[id].push(p)
@@ -72,16 +72,12 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 	}, [points])
 
 	const currentCenter = useMemo(() => {
-		// SAFETY: Ensure both lat AND long exist before returning
-		if (geofence?.center_lat && geofence?.center_long) {
-			return [geofence.center_lat, geofence.center_long]
-		}
-		if (userLocation?.latitude && userLocation?.longitude) {
-			return [userLocation.latitude, userLocation.longitude]
-		}
-		return null // Return null to stay in loading state
+		if (geofence?.center_lat && geofence?.center_long) return [geofence.center_lat, geofence.center_long]
+		if (userLocation?.latitude && userLocation?.longitude) return [userLocation.latitude, userLocation.longitude]
+		return null // 🚩 DO NOT return [0,0], return null to keep loading
 	}, [geofence, userLocation])
 
+	// 🚩 HYDRATION GUARD: Prevents the "Window is not defined" crash
 	if (!mounted || typeof window === 'undefined' || !currentCenter) {
 		return (
 			<div className="w-full h-full bg-[#0b0b0b] flex flex-col items-center justify-center border border-[#222] rounded-xl">
@@ -102,7 +98,7 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 			>
 				<TileLayer attribution="&copy; CARTO" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-				{geofence?.center_lat && geofence?.center_long && (
+				{geofence?.center_lat && (
 					<Circle
 						center={[geofence.center_lat, geofence.center_long]}
 						radius={geofence.radius_meters || 500}

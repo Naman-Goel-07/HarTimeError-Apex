@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-// Haversine Formula: GPS Distance Math
 function getDistance(lat1, lon1, lat2, lon2) {
 	const R = 6371e3
 	const φ1 = (lat1 * Math.PI) / 180
@@ -17,7 +16,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 	const [userLocation, setUserLocation] = useState(null)
 	const [eventMeta, setEventMeta] = useState(null)
 	const lastSentRef = useRef(0)
-	const deviceIdRef = useRef('DRV-INIT') // Default non-null fallback
+	const deviceIdRef = useRef('DRV-SYNCING') // Initial non-null value
 	const THROTTLE_MS = 10000
 
 	useEffect(() => {
@@ -32,12 +31,8 @@ export function useTelemetry(eventId, isCockpit = true) {
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
-			try {
-				const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
-				if (data) setEventMeta(data)
-			} catch (e) {
-				console.error('[APEX] Meta fetch error', e)
-			}
+			const { data } = await supabase.from('events').select('*').eq('id', eventId).single()
+			if (data) setEventMeta(data)
 		}
 		fetchMeta()
 	}, [eventId])
@@ -55,7 +50,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 					filter: `event_id=eq.${eventId}`,
 				},
 				(payload) => {
-					// 🚩 SAFETY: Ensure payload.new exists before updating state
+					// 🚩 CRITICAL SAFETY: Only update if payload.new exists
 					if (payload?.new) {
 						setPoints((prev) => [payload.new, ...prev.slice(0, 49)])
 					}
@@ -102,12 +97,12 @@ export function useTelemetry(eventId, isCockpit = true) {
 						lastSentRef.current = now
 					}
 				},
-				(err) => console.warn('GPS Wait:', err.message),
+				(err) => console.warn(err.message),
 				{ enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
 			)
 		}
 		return () => {
-			if (watchId && navigator.geolocation) navigator.geolocation.clearWatch(watchId)
+			if (watchId) navigator.geolocation.clearWatch(watchId)
 		}
 	}, [eventId, isCockpit, eventMeta])
 
