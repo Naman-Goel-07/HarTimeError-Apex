@@ -182,7 +182,7 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 			</div>
 
 			{/* THEME TOGGLE BUTTON */}
-			<div className="absolute top-6 right-6 z-[1000]">
+			<div className="absolute top-24 right-6 z-[1000]">
 				<button
 					onClick={toggleTheme}
 					className="flex items-center justify-center w-10 h-10 bg-black/80 border border-[#222] hover:border-[#00eeff] rounded-full backdrop-blur-md transition-all active:scale-95 shadow-lg text-gray-400 hover:text-[#00eeff]"
