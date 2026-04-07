@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
-import { Target, Satellite, MapPin } from 'lucide-react'
+import { Target, Satellite, MapPin, Sun, Moon } from 'lucide-react' // 🚩 Added Sun and Moon
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -16,16 +16,12 @@ if (typeof window !== 'undefined') {
 	})
 }
 
-// Button now jumps to the Event (Geofence) coordinates
 function LocateControl({ geofence }) {
 	const map = useMap()
-
-	// Check if the event center coordinates exist
 	const hasEventCoords = !!(geofence?.center_lat && geofence?.center_long)
 
 	const handleJump = () => {
 		if (hasEventCoords) {
-			// Zoom level 17 gives a good tactical overview of the 500m radius
 			map.flyTo([geofence.center_lat, geofence.center_long], 17, {
 				duration: 1.5,
 				easeLinearity: 0.25,
@@ -57,18 +53,32 @@ function LocateControl({ geofence }) {
 
 export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
 	const [mounted, setMounted] = useState(false)
+	const [mapTheme, setMapTheme] = useState('dark') // 🏁 State for the theme
 
+	// HYDRATION & LOCAL STORAGE
 	useEffect(() => {
 		setMounted(true)
+		// Check if the user has a saved preference when the component mounts
+		const savedTheme = localStorage.getItem('apex_map_theme')
+		if (savedTheme === 'light' || savedTheme === 'dark') {
+			setMapTheme(savedTheme)
+		}
 	}, [])
 
-	// GROUPING LOGIC: Organizes flat points into { deviceId: [latestPoint, ...history] }
+	// TOGGLE HANDLER: Updates state AND local storage
+	const toggleTheme = () => {
+		setMapTheme((prevTheme) => {
+			const newTheme = prevTheme === 'dark' ? 'light' : 'dark'
+			localStorage.setItem('apex_map_theme', newTheme)
+			return newTheme
+		})
+	}
+
 	const devices = useMemo(() => {
 		const groups = {}
 		if (!Array.isArray(points)) return groups
 
 		points.forEach((p) => {
-			// Added filter to ignore "DRV-SYNCING" to prevent ghost counts
 			if (!p || !p.device_id || p.device_id === 'DRV-SYNCING') return
 
 			const id = p.device_id
@@ -93,26 +103,42 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 		)
 	}
 
+	// THEME VARIABLES
+	const tileUrl =
+		mapTheme === 'dark' ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+
+	const mapBgColor = mapTheme === 'dark' ? '#0b0b0b' : '#e5e7eb'
+	const primaryColor = mapTheme === 'dark' ? '#00eeff' : '#0055ff' // Darker blue for visibility on light mode
+	const borderColor = mapTheme === 'dark' ? '#fff' : '#111'
+
 	return (
-		<div className="w-full h-full relative bg-[#0b0b0b] overflow-hidden rounded-xl border border-[#222]">
-			<MapContainer center={currentCenter} zoom={17} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-				<TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+		<div
+			className="w-full h-full relative overflow-hidden rounded-xl border border-[#222] transition-colors duration-300"
+			style={{ backgroundColor: mapBgColor }}
+		>
+			<MapContainer center={currentCenter} zoom={17} style={{ height: '100%', width: '100%', background: 'transparent' }} zoomControl={false}>
+				<TileLayer url={tileUrl} />
 
 				{geofence?.center_lat && (
 					<Circle
 						center={[geofence.center_lat, geofence.center_long]}
 						radius={geofence.radius_meters || 500}
-						pathOptions={{ color: '#00eeff', fillColor: '#00eeff', fillOpacity: 0.05, weight: 1, dashArray: '10, 10' }}
+						pathOptions={{
+							color: primaryColor,
+							fillColor: primaryColor,
+							fillOpacity: 0.05,
+							weight: 1,
+							dashArray: '10, 10',
+						}}
 					/>
 				)}
 
-				{/* Passing geofence instead of userLocation */}
 				<LocateControl geofence={geofence} />
 
-				{/* 🚗 RENDER DRIVERS */}
+				{/* RENDER DRIVERS */}
 				{Object.entries(devices).map(([deviceId, history]) => {
 					const latest = history[0]
-					const trail = history.slice(1, 12) // Show last 12 points as trail
+					const trail = history.slice(1, 12)
 
 					return (
 						<div key={deviceId}>
@@ -120,7 +146,12 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 							<CircleMarker
 								center={[latest.latitude, latest.longitude]}
 								radius={8}
-								pathOptions={{ fillColor: '#00eeff', color: '#fff', weight: 2, fillOpacity: 1 }}
+								pathOptions={{
+									fillColor: primaryColor,
+									color: borderColor,
+									weight: 2,
+									fillOpacity: 1,
+								}}
 							/>
 							{/* History Thing (The Trail) */}
 							{trail.map((tp, i) => (
@@ -129,9 +160,9 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 									center={[tp.latitude, tp.longitude]}
 									radius={3}
 									pathOptions={{
-										fillColor: '#00eeff',
+										fillColor: primaryColor,
 										color: 'transparent',
-										fillOpacity: 0.4 - i * 0.04, // Trail fades out
+										fillOpacity: 0.4 - i * 0.04,
 									}}
 								/>
 							))}
@@ -142,12 +173,23 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 
 			{/* HUD Status */}
 			<div className="absolute top-6 left-6 z-[1000] flex flex-col gap-2 pointer-events-none">
-				<div className="bg-black/80 border-l-4 border-[#00ff66] p-3 backdrop-blur-md flex flex-col">
+				<div className="bg-black/80 border-l-4 border-[#00ff66] p-3 backdrop-blur-md flex flex-col shadow-lg">
 					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest leading-none mb-1">Fleet Connectivity</span>
 					<span className="text-[#00ff66] font-bold text-xs animate-pulse tracking-tighter uppercase">
 						{Object.keys(devices).length} Units_Syncing
 					</span>
 				</div>
+			</div>
+
+			{/* THEME TOGGLE BUTTON */}
+			<div className="absolute top-6 right-6 z-[1000]">
+				<button
+					onClick={toggleTheme}
+					className="flex items-center justify-center w-10 h-10 bg-black/80 border border-[#222] hover:border-[#00eeff] rounded-full backdrop-blur-md transition-all active:scale-95 shadow-lg text-gray-400 hover:text-[#00eeff]"
+					title="Toggle Map Optics"
+				>
+					{mapTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+				</button>
 			</div>
 		</div>
 	)
