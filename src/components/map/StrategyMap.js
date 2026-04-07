@@ -3,8 +3,20 @@
 import { useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
 import { Target, Satellite } from 'lucide-react'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
+// 🏁 PRODUCTION ICON FIX: Leaflet paths often break in Vercel builds
+if (typeof window !== 'undefined') {
+	delete L.Icon.Default.prototype._getIconUrl
+	L.Icon.Default.mergeOptions({
+		iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+		iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+		shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+	})
+}
+
+// 🏁 DRV_LOCK BUTTON
 function LocateControl({ userLocation }) {
 	const map = useMap()
 	const isLocked = !!userLocation
@@ -35,7 +47,7 @@ function LocateControl({ userLocation }) {
 }
 
 export default function StrategyMap({ points = [], userLocation = null, geofence = null }) {
-	// 🧠 GROUPING LOGIC: Organizes raw points into { deviceId: [latestPoint, ...history] }
+	// 🧠 GROUPING LOGIC: One dot per device
 	const devices = useMemo(() => {
 		const groups = {}
 		points.forEach((p) => {
@@ -52,11 +64,12 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 		return null
 	}, [geofence, userLocation])
 
-	if (!currentCenter || typeof window === 'undefined') {
+	// 🏁 SSR GUARD: Map Container must not render on server
+	if (typeof window === 'undefined' || !currentCenter) {
 		return (
-			<div className="w-full h-full bg-[#0b0b0b] flex flex-col items-center justify-center font-mono border border-[#222] rounded-xl">
+			<div className="w-full h-full bg-[#0b0b0b] flex flex-col items-center justify-center border border-[#222] rounded-xl">
 				<Satellite className="w-8 h-8 text-[#00eeff]/40 mb-4 animate-bounce" />
-				<span className="text-[#00eeff] text-[10px] uppercase tracking-[0.4em] animate-pulse">Awaiting_Satellite_Lock...</span>
+				<span className="text-[#00eeff] text-[10px] uppercase tracking-widest animate-pulse">Establishing_Satellite_Link...</span>
 			</div>
 		)
 	}
@@ -72,7 +85,6 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 			>
 				<TileLayer attribution="&copy; CARTO" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
 
-				{/* Geofence Rendering */}
 				{geofence?.center_lat && (
 					<Circle
 						center={[geofence.center_lat, geofence.center_long]}
@@ -83,35 +95,33 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 
 				<LocateControl userLocation={userLocation} />
 
-				{/* 🚗 RENDER EACH DEVICE */}
+				{/* 🚗 RENDER DEVICES + TRAILS */}
 				{Object.entries(devices).map(([deviceId, history]) => {
 					const latest = history[0]
-					const trail = history.slice(1, 10) // Show last 10 points as trail
+					const trail = history.slice(1, 8)
 
 					return (
 						<div key={deviceId}>
-							{/* The "One Dot" (Current Position) */}
+							{/* Primary Unit Marker */}
 							<CircleMarker
 								center={[latest.latitude, latest.longitude]}
 								radius={8}
 								pathOptions={{ fillColor: '#00eeff', color: '#fff', weight: 2, fillOpacity: 1 }}
-							>
-								{/* Optional: Add a label or tooltip here for deviceId */}
-							</CircleMarker>
-
-							{/* The "History Thing" (Breadcrumb Trail) */}
+							/>
+							{/* Breadcrumb Trail */}
 							{trail.map((tp, i) => (
 								<CircleMarker
-									key={`${deviceId}-t-${i}`}
+									key={`${deviceId}-trail-${i}`}
 									center={[tp.latitude, tp.longitude]}
 									radius={3}
-									pathOptions={{ fillColor: '#00eeff', color: 'transparent', fillOpacity: 0.3 - i * 0.03 }}
+									pathOptions={{ fillColor: '#00eeff', color: 'transparent', fillOpacity: 0.3 - i * 0.04 }}
 								/>
 							))}
 						</div>
 					)
 				})}
 
+				{/* Grid UI Overlay */}
 				<div
 					className="absolute inset-0 pointer-events-none z-[400] opacity-10"
 					style={{
@@ -122,12 +132,12 @@ export default function StrategyMap({ points = [], userLocation = null, geofence
 				/>
 			</MapContainer>
 
-			{/* Status HUD */}
+			{/* HUD */}
 			<div className="absolute top-6 left-6 z-[1000] flex flex-col gap-2 pointer-events-none">
 				<div className="bg-black/80 border-l-4 border-[#00ff66] p-3 backdrop-blur-md flex flex-col">
-					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest leading-none mb-1">Telemetry Feed</span>
+					<span className="text-[10px] text-gray-400 font-mono uppercase tracking-widest leading-none mb-1">Active Fleet</span>
 					<span className="text-[#00ff66] font-bold text-xs animate-pulse tracking-tighter uppercase">
-						{Object.keys(devices).length} Units_Active
+						{Object.keys(devices).length} Units_Syncing
 					</span>
 				</div>
 			</div>
