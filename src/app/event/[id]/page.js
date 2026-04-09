@@ -2,13 +2,14 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import styles from '../../page.module.css'
 import { useTelemetry } from '@/hooks/useTelemetry'
 import { computeHeatBlobs, determineStrategyZone } from '@/lib/crowdLogic'
 import { useCompass } from '@/hooks/useCompass'
 import { useGuidance } from '@/hooks/useGuidance'
+import { useVoiceGuidance } from '@/hooks/useVoiceGuidance'
 import dynamicImport from 'next/dynamic'
 
 // Dynamic Imports
@@ -46,6 +47,10 @@ export default function EventCockpitPage() {
 
 	// 4. TACTICAL GUIDANCE: AI calculates evasive maneuvers based on blobs + heading
 	const guidance = useGuidance(safeHeading, blobs)
+
+	// 5. VOICE GUIDANCE
+	const [isVoiceActive, setIsVoiceActive] = useState(false)
+	useVoiceGuidance(guidance.suggestion, isVoiceActive)
 
 	return (
 		<main className={styles.pageWrapper}>
@@ -127,7 +132,6 @@ export default function EventCockpitPage() {
 				<div
 					style={{
 						background: 'var(--bg-elevated)',
-						// Dynamic border color based on AI Threat Severity
 						borderLeft: `4px solid ${
 							guidance.severity === 'high' ? 'var(--neon-red)' : guidance.severity === 'medium' ? 'var(--neon-yellow)' : 'var(--neon-cyan)'
 						}`,
@@ -135,13 +139,42 @@ export default function EventCockpitPage() {
 						borderRadius: '4px',
 					}}
 				>
-					<div
-						className={`text-[10px] mb-1 font-mono tracking-tighter ${
-							guidance.severity === 'high' ? 'text-red-500' : guidance.severity === 'medium' ? 'text-yellow-500' : 'text-cyan-400'
-						}`}
-					>
-						{guidance.message}
+					{/* Message label + Voice toggle in same row */}
+					<div className="flex items-center justify-between mb-1">
+						<div
+							className={`text-[10px] font-mono tracking-tighter ${
+								guidance.severity === 'high' ? 'text-red-500' : guidance.severity === 'medium' ? 'text-yellow-500' : 'text-cyan-400'
+							}`}
+						>
+							{guidance.message}
+						</div>
+
+						{/* 🎤 Voice Toggle Button */}
+						<button
+							onClick={() => {
+							const next = !isVoiceActive
+							if (typeof window !== 'undefined' && window.speechSynthesis) {
+								window.speechSynthesis.cancel()
+								const feedback = new SpeechSynthesisUtterance(
+									next ? 'Voice guidance activated' : 'Voice guidance disabled'
+								)
+								feedback.lang = 'en-US'
+								feedback.rate = 0.9
+								window.speechSynthesis.speak(feedback)
+							}
+							setIsVoiceActive(next)
+						}}
+							className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[9px] uppercase tracking-widest font-mono transition-all active:scale-95 ${
+								isVoiceActive
+									? 'bg-[#00eeff]/10 border-[#00eeff] text-[#00eeff]'
+									: 'bg-[#1a1a1a] border-[#333] text-[#555] hover:border-[#00eeff]/40 hover:text-[#8892a4]'
+							}`}
+						>
+							<span className={isVoiceActive ? 'animate-pulse' : ''}>🎤</span>
+							{isVoiceActive ? 'VOICE ON' : 'VOICE OFF'}
+						</button>
 					</div>
+
 					<div className="text-lg font-bold font-display uppercase tracking-tight text-white/90">{guidance.suggestion}</div>
 				</div>
 			</section>
