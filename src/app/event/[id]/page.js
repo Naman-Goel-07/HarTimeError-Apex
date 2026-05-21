@@ -27,7 +27,7 @@ export default function EventCockpitPage() {
 	const eventId = params.id
 
 	// 1. TELEMETRY: Get live GPS data
-	const { points, userLocation } = useTelemetry(eventId, true)
+	const { points, userLocation, eventMeta } = useTelemetry(eventId, true)
 
 	// 2. SENSORS: Get compass hardware data
 	const { heading, cardinalDirection, isSupported, requestPermission, permissionGranted } = useCompass()
@@ -82,6 +82,19 @@ export default function EventCockpitPage() {
 					</div>
 				</div>
 			</header>
+
+			{/* OPPOSITE FLOW HAZARD BANNER */}
+			{eventMeta?.opposite_flow_detected && (
+				<div className="w-full max-w-[340px] mx-auto mt-4 px-4">
+					<div className="bg-red-950/40 border border-red-500/50 rounded-lg p-3 flex items-start gap-3 animate-pulse">
+						<span className="text-red-500 text-lg mt-0.5">⚠️</span>
+						<div>
+							<h3 className="text-red-500 font-bold text-xs tracking-wider uppercase mb-1">Hazard Detected</h3>
+							<p className="text-red-200/80 text-[10px] uppercase font-mono">{eventMeta.opposite_flow_warning || 'Opposite flow detected in sector'}</p>
+						</div>
+					</div>
+				</div>
+			)}
 
 			<section className={styles.radarSection}>
 				{/* WRAPPER: Constrains the entire radar UI to a mobile-sized column even on desktop */}

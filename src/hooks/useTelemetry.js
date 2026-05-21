@@ -43,7 +43,7 @@ export function useTelemetry(eventId, isCockpit = true) {
 		loadInitialData()
 	}, [eventId])
 
-	// 2. Fetch Event Metadata
+	// 2. Fetch Event Metadata & Subscribe to Changes
 	useEffect(() => {
 		if (!eventId) return
 		async function fetchMeta() {
@@ -55,6 +55,28 @@ export function useTelemetry(eventId, isCockpit = true) {
 			}
 		}
 		fetchMeta()
+
+		const metaChannel = supabase
+			.channel(`live-events-${eventId}`)
+			.on(
+				'postgres_changes',
+				{
+					event: 'UPDATE',
+					schema: 'public',
+					table: 'events',
+					filter: `id=eq.${eventId}`,
+				},
+				(payload) => {
+					if (payload?.new) {
+						setEventMeta(payload.new)
+					}
+				},
+			)
+			.subscribe()
+
+		return () => {
+			supabase.removeChannel(metaChannel)
+		}
 	}, [eventId])
 
 	// 3. Real-time Listening (Remains the same)

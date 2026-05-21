@@ -1,3 +1,7 @@
 fastapi
 supabase
 pydantic
+tensorflow
+scikit-learn
+pandas
+numpy
