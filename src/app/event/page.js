@@ -42,7 +42,7 @@ export default function EventPortal() {
 										</div>
 										<div>
 											<h2 className="text-sm font-bold uppercase italic text-white">{event.name}</h2>
-											<p className="text-[9px] text-[#444] uppercase">{event.description || 'Live Stream Active'}</p>
+											<p className="text-[9px] text-[#fff] uppercase">{event.description || 'Live Stream Active'}</p>
 										</div>
 									</div>
 									<ChevronRight className="w-4 h-4 text-[#222] group-hover:text-[#00eeff]" />

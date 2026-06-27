@@ -78,7 +78,7 @@ export default function AdminPortal() {
 
 									<div className="space-y-1">
 										<h2 className="text-lg font-bold uppercase italic tracking-tight">{event.name}</h2>
-										<p className="text-[10px] text-[#444] uppercase tracking-wider line-clamp-1">
+										<p className="text-[10px] text-[#fff] uppercase tracking-wider line-clamp-1">
 											{event.description || 'Active Telemetry Stream'}
 										</p>
 									</div>
